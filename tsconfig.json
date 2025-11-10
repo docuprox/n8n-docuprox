@@ -1,0 +1,22 @@
+﻿{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2017",
+    "outDir": "./dist",
+    "rootDir": "./",
+    "declaration": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "nodes/**/*",
+    "credentials/**/*",
+    "index.ts",
+    "dist/credentials/DocuProxApi.credentials.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

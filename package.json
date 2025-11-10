@@ -1,0 +1,34 @@
+{
+  "name": "n8n-nodes-docuprox",
+  "version": "1.0.0",
+  "description": "N8n node for DocuProx API integration",
+  "license": "MIT",
+  "main": "index.js",
+"scripts": {
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "if exist nodes\\DocuProx\\*.png xcopy /Y nodes\\DocuProx\\*.png dist\\nodes\\DocuProx\\",
+    "dev": "tsc --watch",
+    "format": "prettier nodes --write",
+    "lint": "eslint nodes package.json"
+},
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/nodes/DocuProx/DocuProx.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "n8n-workflow": "*",
+    "prettier": "^2.7.1",
+    "typescript": "^4.8.4"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
