@@ -1,16 +1,33 @@
 {
   "name": "n8n-nodes-docuprox",
   "version": "1.0.0",
-  "description": "N8n node for DocuProx API integration",
+  "description": "A n8n Node for processing files and base64 data using the Docuprox API. Easily integrate automated document processing and data extraction into your applications.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "docuprox",
+    "document-processing",
+    "api"
+  ],
   "license": "MIT",
+  "homepage": "https://github.com/docuprox/n8n-docuprox",
+  "author": {
+    "name": "DocuProx",
+    "email": "mail@docuprox.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/docuprox/n8n-docuprox.git"
+  },
   "main": "index.js",
-"scripts": {
+  "scripts": {
     "build": "tsc && npm run copy-assets",
     "copy-assets": "if exist nodes\\DocuProx\\*.png xcopy /Y nodes\\DocuProx\\*.png dist\\nodes\\DocuProx\\",
     "dev": "tsc --watch",
     "format": "prettier nodes --write",
-    "lint": "eslint nodes package.json"
-},
+    "lint": "eslint nodes package.json",
+    "prepublishOnly": "npm run build"
+  },
   "files": [
     "dist"
   ],
