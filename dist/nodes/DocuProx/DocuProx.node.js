@@ -133,9 +133,8 @@ class DocuProx {
                     template_id: templateId,
                     actual_image: imageData,
                 };
-                console.log('Payload for API:', requestBody);
                 // Make API call to DocuProx with credentials
-                const response = await this.helpers.requestWithAuthentication.call(this, 'docuProxApi', {
+                const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
                     method: 'POST',
                     url: 'https://api.docuprox.com/v1/process',
                     headers: {
@@ -170,12 +169,6 @@ class DocuProx {
                         pairedItem: { item: i },
                     });
                     continue;
-                }
-                // Log error details
-                console.error('DocuProx API Error:', error.message);
-                if (error.response) {
-                    console.error('Response Status:', error.response.statusCode);
-                    console.error('Response Body:', error.response.body);
                 }
                 throw new n8n_workflow_1.NodeOperationError(this.getNode(), `DocuProx API Error: ${error.message}`, { itemIndex: i });
             }

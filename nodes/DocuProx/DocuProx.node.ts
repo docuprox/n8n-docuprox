@@ -159,10 +159,9 @@ export class DocuProx implements INodeType {
 					actual_image: imageData,
 				};
 
-				console.log('Payload for API:', requestBody);
 
 				// Make API call to DocuProx with credentials
-				const response = await this.helpers.requestWithAuthentication.call(
+				const response = await this.helpers.httpRequestWithAuthentication.call(
 					this,
 					'docuProxApi',
 					{
@@ -202,13 +201,6 @@ export class DocuProx implements INodeType {
 						pairedItem: { item: i },
 					});
 					continue;
-				}
-
-				// Log error details
-				console.error('DocuProx API Error:', error.message);
-				if (error.response) {
-					console.error('Response Status:', error.response.statusCode);
-					console.error('Response Body:', error.response.body);
 				}
 
 				throw new NodeOperationError(
