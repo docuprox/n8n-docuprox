@@ -1,15 +1,15 @@
 {
   "name": "n8n-nodes-docuprox",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A n8n Node for processing files and base64 data using the Docuprox API. Easily integrate automated document processing and data extraction into your applications.",
   "keywords": [
-  "n8n",
-  "n8n-nodes",
-  "n8n-community-node-package",
-  "docuprox",
-  "document-processing",
-  "api"
-],
+    "n8n",
+    "n8n-nodes",
+    "n8n-community-node-package",
+    "docuprox",
+    "document-processing",
+    "api"
+  ],
   "license": "MIT",
   "homepage": "https://github.com/docuprox/n8n-docuprox",
   "author": {
