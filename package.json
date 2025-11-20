@@ -34,6 +34,9 @@
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/DocuProxApi.credentials.js"
+    ],
     "nodes": [
       "dist/nodes/DocuProx/DocuProx.node.js"
     ]
