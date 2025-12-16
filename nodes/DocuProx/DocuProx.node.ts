@@ -4,21 +4,22 @@ import {
 	INodeType,
 	INodeTypeDescription,
 	NodeOperationError,
+	NodeConnectionTypes,
 } from 'n8n-workflow';
 
 export class DocuProx implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'DocuProx',
 		name: 'docuProx',
-		icon: 'file:douprox-logo.png',
+		icon: 'file:douprox-logo.svg',
 		group: ['transform'],
 		version: 1,
 		description: 'Process documents using DocuProx API',
 		defaults: {
 			name: 'DocuProx',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [NodeConnectionTypes.Main],
+        outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'docuProxApi',
@@ -26,6 +27,41 @@ export class DocuProx implements INodeType {
 			},
 		],
 		properties: [
+			// Resource Selector
+			{
+				displayName: 'Resource',
+				name: 'resource',
+				type: 'options',
+				options: [
+					{
+						name: 'Document',
+						value: 'document',
+						description: 'Work with documents using DocuProx',
+					},
+				],
+				default: 'document',
+				required: true,
+			},
+			// Operation Selector
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+					},
+				},
+				options: [
+					{
+						name: 'Process',
+						value: 'process',
+						description: 'Process a document with a template',
+					},
+				],
+				default: 'process',
+				required: true,
+			},
 			// Template ID Field
 			{
 				displayName: 'Template ID',
@@ -35,6 +71,12 @@ export class DocuProx implements INodeType {
 				default: '',
 				placeholder: 'Enter Template ID',
 				description: 'The ID of the template to use for document processing',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process'],
+					},
+				},
 			},
 			// Image Source Selection
 			{
@@ -56,6 +98,12 @@ export class DocuProx implements INodeType {
 					},
 				],
 				description: 'Select how you want to provide the image',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process'],
+					},
+				},
 			},
 			// Binary Property Name (for file upload)
 			{
@@ -68,12 +116,12 @@ export class DocuProx implements INodeType {
 				description: 'Name of the binary property that contains the image file',
 				displayOptions: {
 					show: {
+						resource: ['document'],
+						operation: ['process'],
 						imageSource: ['upload'],
 					},
 				},
 			},
-
-
 			// Base64 Image Input
 			{
 				displayName: 'Base64 Image',
@@ -88,6 +136,8 @@ export class DocuProx implements INodeType {
 				},
 				displayOptions: {
 					show: {
+						resource: ['document'],
+						operation: ['process'],
 						imageSource: ['base64'],
 					},
 				},
@@ -101,95 +151,85 @@ export class DocuProx implements INodeType {
 
 		for (let i = 0; i < items.length; i++) {
 			try {
-				// Get all required parameters
-				const templateId = this.getNodeParameter('templateId', i) as string;
-				const imageSource = this.getNodeParameter('imageSource', i) as string;
+				const resource = this.getNodeParameter('resource', i) as string;
+				const operation = this.getNodeParameter('operation', i) as string;
 
-				// Validate required fields
-				if (!templateId || templateId.trim() === '') {
-					throw new NodeOperationError(
-						this.getNode(),
-						'Template ID is required',
-						{ itemIndex: i }
+				if (resource === 'document' && operation === 'process') {
+					const templateId = this.getNodeParameter('templateId', i) as string;
+					const imageSource = this.getNodeParameter('imageSource', i) as string;
+
+					if (!templateId || templateId.trim() === '') {
+						throw new NodeOperationError(
+							this.getNode(),
+							'Template ID is required',
+							{ itemIndex: i }
+						);
+					}
+
+					let imageData: string;
+
+					if (imageSource === 'upload') {
+						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+						
+						if (!binaryPropertyName || binaryPropertyName.trim() === '') {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Binary Property Name is required when using Upload Image',
+								{ itemIndex: i }
+							);
+						}
+
+						const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
+						imageData = buffer.toString('base64');
+					} else {
+						imageData = this.getNodeParameter('base64Image', i) as string;
+						
+						if (!imageData || imageData.trim() === '') {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Base64 Image is required when using Base64 String option',
+								{ itemIndex: i }
+							);
+						}
+
+						if (imageData.includes('base64,')) {
+							imageData = imageData.split('base64,')[1];
+						}
+					}
+
+					const requestBody = {
+						template_id: templateId,
+						actual_image: imageData,
+					};
+
+					const response = await this.helpers.httpRequestWithAuthentication.call(
+						this,
+						'docuProxApi',
+						{
+							method: 'POST',
+							url: 'https://api.docuprox.com/v1/process',
+							headers: {
+								'Content-Type': 'application/json',
+								'Accept': 'application/json',
+							},
+							body: requestBody,
+							json: true,
+							timeout: 60000,
+						}
 					);
-				}
 
-				let imageData: string;
-
-				// Handle image based on source type
-				if (imageSource === 'upload') {
-					// Get image from binary data
-					const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
-					
-					if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-						throw new NodeOperationError(
-							this.getNode(),
-							'Binary Property Name is required when using Upload Image',
-							{ itemIndex: i }
-						);
-					}
-
-					// Get binary data
-					const binaryData = this.helpers.assertBinaryData(i, binaryPropertyName);
-					const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
-					
-					// Convert to base64
-					imageData = buffer.toString('base64');
-				} else {
-					// Get image from base64 input
-					imageData = this.getNodeParameter('base64Image', i) as string;
-					
-					if (!imageData || imageData.trim() === '') {
-						throw new NodeOperationError(
-							this.getNode(),
-							'Base64 Image is required when using Base64 String option',
-							{ itemIndex: i }
-						);
-					}
-
-					// Remove data URI prefix if present
-					if (imageData.includes('base64,')) {
-						imageData = imageData.split('base64,')[1];
-					}
-				}
-
-				// Prepare API request body
-				const requestBody = {
-					template_id: templateId,
-					actual_image: imageData,
-				};
-
-
-				// Make API call to DocuProx with credentials
-				const response = await this.helpers.httpRequestWithAuthentication.call(
-					this,
-					'docuProxApi',
-					{
-						method: 'POST',
-						url: 'https://api.docuprox.com/v1/process',
-						headers: {
-							'Content-Type': 'application/json',
-							'Accept': 'application/json',
+					returnData.push({
+						json: {
+							success: true,
+							templateId,
+							response,
+							timestamp: new Date().toISOString(),
 						},
-						body: requestBody,
-						json: true,
-						timeout: 60000,
-					}
-				);
-
-				// Return the API response
-				returnData.push({
-					json: {
-						success: true,
-						templateId: templateId,
-						response: response,
-						timestamp: new Date().toISOString(),
-					},
-					pairedItem: { item: i },
-				});
+						pairedItem: { item: i },
+					});
+				}
 
 			} catch (error: any) {
-				// Handle errors
 				if (this.continueOnFail()) {
 					returnData.push({
 						json: {
@@ -214,5 +254,3 @@ export class DocuProx implements INodeType {
 		return [returnData];
 	}
 }
-
-

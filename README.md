@@ -89,7 +89,7 @@ The node includes comprehensive error handling and will return error details if 
 ├── nodes/
 │   └── DocuProx/
 │       ├── DocuProx.node.ts          # Main node implementation
-│       └── douprox-logo.png          # Node icon
+│       └── douprox-logo.svg          # Node icon
 ├── dist/                             # Built files
 ├── package.json
 ├── tsconfig.json
