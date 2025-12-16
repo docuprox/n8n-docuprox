@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-docuprox",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A n8n Node for processing files and base64 data using the Docuprox API. Easily integrate automated document processing and data extraction into your applications.",
   "keywords": [
     "n8n",

@@ -56,6 +56,7 @@ export class DocuProx implements INodeType {
 					{
 						name: 'Process',
 						value: 'process',
+						action: 'Process a document',
 						description: 'Process a document with a template',
 					},
 				],
