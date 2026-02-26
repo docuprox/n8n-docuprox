@@ -594,6 +594,9 @@ export class DocuProx implements INodeType {
 
 					console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
 
+					// ✅ CSV returns plain text — don't use json:true for csv
+					const isJson = resultFormat === 'json';
+
 					const response = await this.helpers.httpRequestWithAuthentication.call(
 						this,
 						'docuProxApi',
@@ -602,48 +605,70 @@ export class DocuProx implements INodeType {
 							url: `${BASE_URL}/job-results`,
 							headers: {
 								'Content-Type': 'application/json',
-								'Accept': 'application/json',
+								// ✅ Accept header based on format
+								'Accept': isJson ? 'application/json' : 'text/csv',
 							},
 							body: {
 								job_id: jobId,
 								result_format: resultFormat,
 							},
-							json: true,
+							json: isJson,       // ✅ only parse as JSON when format is json
+							encoding: isJson ? undefined : 'utf8',  // ✅ read CSV as plain string
 							timeout: 60000,
 						},
 					);
 
-					returnData.push({
-						json: {
-							success: true,
-							jobId,
-							resultFormat,
-							response,
-							timestamp: new Date().toISOString(),
-						},
-						pairedItem: { item: i },
-					});
-				}
+					if (isJson) {
+						// ✅ JSON: API returns array — wrap it properly
+						const dataArray = Array.isArray(response) ? response : [response];
 
-			} catch (error: any) {
+						returnData.push({
+							json: {
+								success: true,
+								jobId,
+								resultFormat,
+								total_records: dataArray.length,
+								results: dataArray,
+								timestamp: new Date().toISOString(),
+							},
+							pairedItem: { item: i },
+						});
+
+					} else {
+						// ✅ CSV: API returns plain text string
+						const csvString = typeof response === 'string' ? response : String(response);
+
+						// Count rows (subtract 1 for header row)
+						const rows = csvString.split('\n').filter(line => line.trim() !== '');
+						const totalRecords = rows.length > 1 ? rows.length - 1 : 0;
+
+						returnData.push({
+							json: {
+								success: true,
+								jobId,
+								resultFormat,
+								total_records: totalRecords,
+								results_csv: csvString,
+								timestamp: new Date().toISOString(),
+							},
+							// ✅ Also attach CSV as binary so user can download it
+							binary: {
+								data: await this.helpers.prepareBinaryData(
+									Buffer.from(csvString, 'utf8'),
+									`job_${jobId}_results.csv`,
+									'text/csv',
+								),
+							},
+							pairedItem: { item: i },
+						});
+					}
+				}
+			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({
-						json: {
-							success: false,
-							error: error.message,
-							errorDetails: error.response?.body || error.response?.data || null,
-							timestamp: new Date().toISOString(),
-						},
-						pairedItem: { item: i },
-					});
+					returnData.push({ json: { error: (error as Error).message } });
 					continue;
 				}
-
-				throw new NodeOperationError(
-					this.getNode(),
-					`DocuProx API Error: ${error.message}`,
-					{ itemIndex: i },
-				);
+				throw error;
 			}
 		}
 
