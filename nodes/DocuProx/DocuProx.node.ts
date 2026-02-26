@@ -29,6 +29,30 @@ function getMimeType(filename: string): string {
 
 	return mimeTypes[ext] || 'application/octet-stream';
 }
+
+// ── Helper: parse staticValues safely and return object or undefined ──────────
+function parseStaticValues(raw: any): Record<string, any> | undefined {
+	if (!raw) return undefined;
+
+	let parsed = raw;
+
+	if (typeof parsed === 'string') {
+		const trimmed = parsed.trim();
+		if (!trimmed || trimmed === '{}') return undefined;
+		try {
+			parsed = JSON.parse(trimmed);
+		} catch {
+			return undefined;
+		}
+	}
+
+	if (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
+		return parsed;
+	}
+
+	return undefined;
+}
+
 export class DocuProx implements INodeType {
 
 	description: INodeTypeDescription = {
@@ -227,6 +251,23 @@ export class DocuProx implements INodeType {
 				},
 			},
 
+			// ─── PROCESS: Static Values (optional) ────────────────────────────
+			{
+				displayName: 'Static Values',
+				name: 'staticValues',
+				type: 'json',
+				required: false,
+				default: '{}',
+				placeholder: '{"name_1": "monika", "city": "dewas"}',
+				description: 'Optional static key-value pairs to send along with the document (object format)',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process'],
+					},
+				},
+			},
+
 			// ─── SUBMIT JOB: Binary Property Name ─────────────────────────────
 			{
 				displayName: 'Binary Property Name',
@@ -244,15 +285,15 @@ export class DocuProx implements INodeType {
 				},
 			},
 
-			// ─── SUBMIT JOB: Static Values ─────────────────────────────────────
+			// ─── SUBMIT JOB: Static Values (optional) ─────────────────────────
 			{
 				displayName: 'Static Values',
 				name: 'staticValues',
 				type: 'json',
 				required: false,
 				default: '{}',
-				placeholder: '{"name_1": "monika12", "city": "dewas"}',
-				description: 'Optional static key-value pairs to send along with the job',
+				placeholder: '{"name_1": "monika", "city": "dewas"}',
+				description: 'Optional static key-value pairs to send along with the job (object format)',
 				displayOptions: {
 					show: {
 						resource: ['job'],
@@ -356,7 +397,21 @@ export class DocuProx implements INodeType {
 						}
 					}
 
-					console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length}`);
+					// ── Optional static_values ──────────────────────────────────
+					const rawStaticValues = this.getNodeParameter('staticValues', i, {}) as any;
+					const staticValues = parseStaticValues(rawStaticValues);
+
+					// ── Build request body ──────────────────────────────────────
+					const requestBody: Record<string, any> = {
+						template_id: templateId,
+						actual_image: imageData,
+					};
+
+					if (staticValues) {
+						requestBody.static_values = staticValues;
+					}
+
+					console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${JSON.stringify(staticValues ?? {})}`);
 
 					const response = await this.helpers.httpRequestWithAuthentication.call(
 						this,
@@ -368,10 +423,7 @@ export class DocuProx implements INodeType {
 								'Content-Type': 'application/json',
 								'Accept': 'application/json',
 							},
-							body: {
-								template_id: templateId,
-								actual_image: imageData,
-							},
+							body: requestBody,
 							json: true,
 							timeout: 60000,
 						},
@@ -381,6 +433,7 @@ export class DocuProx implements INodeType {
 						json: {
 							success: true,
 							templateId,
+							staticValues: staticValues ?? null,
 							response,
 							timestamp: new Date().toISOString(),
 						},
@@ -388,136 +441,147 @@ export class DocuProx implements INodeType {
 					});
 				}
 
+				// ─── SUBMIT JOB ────────────────────────────────────────────────
+				else if (resource === 'job' && operation === 'processJob') {
+					const templateId = this.getNodeParameter('templateId', i) as string;
+					const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
 
-		// ─── SUBMIT JOB ──────────────────────────────────────────────────────────
-		else if (resource === 'job' && operation === 'processJob') {
-		const templateId = this.getNodeParameter('templateId', i) as string;
-		const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+					if (!templateId || templateId.trim() === '') {
+						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
+					}
 
-		if (!templateId || templateId.trim() === '') {
-			throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
-		}
+					if (!binaryPropertyName || binaryPropertyName.trim() === '') {
+						throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+					}
 
-		if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-			throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
-		}
+					if (!items[i].binary || !items[i].binary![binaryPropertyName]) {
+						throw new NodeOperationError(
+							this.getNode(),
+							`No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`,
+							{ itemIndex: i },
+						);
+					}
 
-		if (!items[i].binary || !items[i].binary![binaryPropertyName]) {
-			throw new NodeOperationError(
-			this.getNode(),
-			`No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`,
-			{ itemIndex: i },
-			);
-		}
+					const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
+					const zipBase64 = buffer.toString('base64');
 
-		const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
-		const zipBase64 = buffer.toString('base64');
+					// ── Optional static_values ────────────────────────────────
+					const rawStaticValues = this.getNodeParameter('staticValues', i, {}) as any;
+					const staticValues = parseStaticValues(rawStaticValues);
 
-		console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length}`);
+					// ── Build request body ────────────────────────────────────
+					const requestBody: Record<string, any> = {
+						template_id: templateId,
+						actual_image: zipBase64,
+					};
 
-		let response: any;
-		try {
-			response = await this.helpers.httpRequestWithAuthentication.call(
-			this,
-			'docuProxApi',
-			{
-				method: 'POST',
-				url: `${BASE_URL}/process-job`,
-				headers: {
-				'Content-Type': 'application/json',
-				'Accept': 'application/json',
-				},
-				body: {
-				template_id: templateId,
-				actual_image: zipBase64,
-				},
-				json: true,
-				timeout: 120000,
-			},
-			);
-		} catch (error: any) {
-			console.error('========== DocuProx ERROR ==========');
-			console.error('Message:', error.message);
-			console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
-			console.error('Status Code:', error.response?.statusCode || 'N/A');
-			console.error('====================================');
-			throw new NodeOperationError(
-			this.getNode(),
-			`DocuProx API Error: ${error.message}`,
-			{ itemIndex: i },
-			);
-		}
+					if (staticValues) {
+						requestBody.static_values = staticValues;
+					}
 
-		console.log('========== DocuProx RESPONSE ==========');
-		console.log(JSON.stringify(response, null, 2));
-		console.log('=======================================');
+					console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${JSON.stringify(staticValues ?? {})}`);
 
-		returnData.push({
-			json: {
-			success: true,
-			templateId,
-			response,
-			timestamp: new Date().toISOString(),
-			},
-			pairedItem: { item: i },
-		});
-	}
-				
-			// ─── JOB STATUS ──────────────────────────────────────────────────────────
-			else if (resource === 'job' && operation === 'jobStatus') {
-			const jobId = this.getNodeParameter('jobId', i) as string;
+					let response: any;
+					try {
+						response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							'docuProxApi',
+							{
+								method: 'POST',
+								url: `${BASE_URL}/process-job`,
+								headers: {
+									'Content-Type': 'application/json',
+									'Accept': 'application/json',
+								},
+								body: requestBody,
+								json: true,
+								timeout: 120000,
+							},
+						);
+					} catch (error: any) {
+						console.error('========== DocuProx ERROR ==========');
+						console.error('Message:', error.message);
+						console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
+						console.error('Status Code:', error.response?.statusCode || 'N/A');
+						console.error('====================================');
+						throw new NodeOperationError(
+							this.getNode(),
+							`DocuProx API Error: ${error.message}`,
+							{ itemIndex: i },
+						);
+					}
 
-			if (!jobId || jobId.trim() === '') {
-				throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
-			}
+					console.log('========== DocuProx RESPONSE ==========');
+					console.log(JSON.stringify(response, null, 2));
+					console.log('=======================================');
 
-			console.log(`[DocuProx] jobStatus → job_id: ${jobId}`);
+					returnData.push({
+						json: {
+							success: true,
+							templateId,
+							staticValues: staticValues ?? null,
+							response,
+							timestamp: new Date().toISOString(),
+						},
+						pairedItem: { item: i },
+					});
+				}
 
-			let response: any;
-			try {
-				response = await this.helpers.httpRequestWithAuthentication.call(
-				this,
-				'docuProxApi',
-				{
-					method: 'GET',
-					url: `${BASE_URL}/job-status`,
-					headers: {
-					'Accept': 'application/json',
-					},
-					qs: {
-					job_id: jobId,   // ✅ sends as ?job_id=xxx
-					},
-					json: true,
-					timeout: 30000,
-				},
-				);
-			} catch (error: any) {
-				console.error('========== DocuProx ERROR ==========');
-				console.error('Message:', error.message);
-				console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
-				console.error('Status Code:', error.response?.statusCode || 'N/A');
-				console.error('====================================');
-				throw new NodeOperationError(
-				this.getNode(),
-				`DocuProx API Error: ${error.message}`,
-				{ itemIndex: i },
-				);
-			}
+				// ─── JOB STATUS ────────────────────────────────────────────────
+				else if (resource === 'job' && operation === 'jobStatus') {
+					const jobId = this.getNodeParameter('jobId', i) as string;
 
-			console.log('========== DocuProx RESPONSE ==========');
-			console.log(JSON.stringify(response, null, 2));
-			console.log('=======================================');
+					if (!jobId || jobId.trim() === '') {
+						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
+					}
 
-			returnData.push({
-				json: {
-				success: true,
-				jobId,
-				response,
-				timestamp: new Date().toISOString(),
-				},
-				pairedItem: { item: i },
-			});
-			}
+					console.log(`[DocuProx] jobStatus → job_id: ${jobId}`);
+
+					let response: any;
+					try {
+						response = await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							'docuProxApi',
+							{
+								method: 'GET',
+								url: `${BASE_URL}/job-status`,
+								headers: {
+									'Accept': 'application/json',
+								},
+								qs: {
+									job_id: jobId,
+								},
+								json: true,
+								timeout: 30000,
+							},
+						);
+					} catch (error: any) {
+						console.error('========== DocuProx ERROR ==========');
+						console.error('Message:', error.message);
+						console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
+						console.error('Status Code:', error.response?.statusCode || 'N/A');
+						console.error('====================================');
+						throw new NodeOperationError(
+							this.getNode(),
+							`DocuProx API Error: ${error.message}`,
+							{ itemIndex: i },
+						);
+					}
+
+					console.log('========== DocuProx RESPONSE ==========');
+					console.log(JSON.stringify(response, null, 2));
+					console.log('=======================================');
+
+					returnData.push({
+						json: {
+							success: true,
+							jobId,
+							response,
+							timestamp: new Date().toISOString(),
+						},
+						pairedItem: { item: i },
+					});
+				}
 
 				// ─── JOB RESULTS ───────────────────────────────────────────────
 				else if (resource === 'job' && operation === 'jobResults') {

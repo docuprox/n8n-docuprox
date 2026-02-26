@@ -21,6 +21,27 @@ function getMimeType(filename) {
     };
     return mimeTypes[ext] || 'application/octet-stream';
 }
+// ── Helper: parse staticValues safely and return object or undefined ──────────
+function parseStaticValues(raw) {
+    if (!raw)
+        return undefined;
+    let parsed = raw;
+    if (typeof parsed === 'string') {
+        const trimmed = parsed.trim();
+        if (!trimmed || trimmed === '{}')
+            return undefined;
+        try {
+            parsed = JSON.parse(trimmed);
+        }
+        catch (_a) {
+            return undefined;
+        }
+    }
+    if (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
+        return parsed;
+    }
+    return undefined;
+}
 class DocuProx {
     constructor() {
         this.description = {
@@ -210,6 +231,22 @@ class DocuProx {
                         },
                     },
                 },
+                // ─── PROCESS: Static Values (optional) ────────────────────────────
+                {
+                    displayName: 'Static Values',
+                    name: 'staticValues',
+                    type: 'json',
+                    required: false,
+                    default: '{}',
+                    placeholder: '{"name_1": "monika", "city": "dewas"}',
+                    description: 'Optional static key-value pairs to send along with the document (object format)',
+                    displayOptions: {
+                        show: {
+                            resource: ['document'],
+                            operation: ['process'],
+                        },
+                    },
+                },
                 // ─── SUBMIT JOB: Binary Property Name ─────────────────────────────
                 {
                     displayName: 'Binary Property Name',
@@ -226,15 +263,15 @@ class DocuProx {
                         },
                     },
                 },
-                // ─── SUBMIT JOB: Static Values ─────────────────────────────────────
+                // ─── SUBMIT JOB: Static Values (optional) ─────────────────────────
                 {
                     displayName: 'Static Values',
                     name: 'staticValues',
                     type: 'json',
                     required: false,
                     default: '{}',
-                    placeholder: '{"name_1": "monika12", "city": "dewas"}',
-                    description: 'Optional static key-value pairs to send along with the job',
+                    placeholder: '{"name_1": "monika", "city": "dewas"}',
+                    description: 'Optional static key-value pairs to send along with the job (object format)',
                     displayOptions: {
                         show: {
                             resource: ['job'],
@@ -313,7 +350,18 @@ class DocuProx {
                             imageData = imageData.split('base64,')[1];
                         }
                     }
-                    console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length}`);
+                    // ── Optional static_values ──────────────────────────────────
+                    const rawStaticValues = this.getNodeParameter('staticValues', i, {});
+                    const staticValues = parseStaticValues(rawStaticValues);
+                    // ── Build request body ──────────────────────────────────────
+                    const requestBody = {
+                        template_id: templateId,
+                        actual_image: imageData,
+                    };
+                    if (staticValues) {
+                        requestBody.static_values = staticValues;
+                    }
+                    console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${JSON.stringify(staticValues !== null && staticValues !== void 0 ? staticValues : {})}`);
                     const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
                         method: 'POST',
                         url: `${BASE_URL}/process`,
@@ -321,10 +369,7 @@ class DocuProx {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
                         },
-                        body: {
-                            template_id: templateId,
-                            actual_image: imageData,
-                        },
+                        body: requestBody,
                         json: true,
                         timeout: 60000,
                     });
@@ -332,13 +377,14 @@ class DocuProx {
                         json: {
                             success: true,
                             templateId,
+                            staticValues: staticValues !== null && staticValues !== void 0 ? staticValues : null,
                             response,
                             timestamp: new Date().toISOString(),
                         },
                         pairedItem: { item: i },
                     });
                 }
-                // ─── SUBMIT JOB ──────────────────────────────────────────────────────────
+                // ─── SUBMIT JOB ────────────────────────────────────────────────
                 else if (resource === 'job' && operation === 'processJob') {
                     const templateId = this.getNodeParameter('templateId', i);
                     const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i);
@@ -353,7 +399,18 @@ class DocuProx {
                     }
                     const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
                     const zipBase64 = buffer.toString('base64');
-                    console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length}`);
+                    // ── Optional static_values ────────────────────────────────
+                    const rawStaticValues = this.getNodeParameter('staticValues', i, {});
+                    const staticValues = parseStaticValues(rawStaticValues);
+                    // ── Build request body ────────────────────────────────────
+                    const requestBody = {
+                        template_id: templateId,
+                        actual_image: zipBase64,
+                    };
+                    if (staticValues) {
+                        requestBody.static_values = staticValues;
+                    }
+                    console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${JSON.stringify(staticValues !== null && staticValues !== void 0 ? staticValues : {})}`);
                     let response;
                     try {
                         response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
@@ -363,10 +420,7 @@ class DocuProx {
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json',
                             },
-                            body: {
-                                template_id: templateId,
-                                actual_image: zipBase64,
-                            },
+                            body: requestBody,
                             json: true,
                             timeout: 120000,
                         });
@@ -386,13 +440,14 @@ class DocuProx {
                         json: {
                             success: true,
                             templateId,
+                            staticValues: staticValues !== null && staticValues !== void 0 ? staticValues : null,
                             response,
                             timestamp: new Date().toISOString(),
                         },
                         pairedItem: { item: i },
                     });
                 }
-                // ─── JOB STATUS ──────────────────────────────────────────────────────────
+                // ─── JOB STATUS ────────────────────────────────────────────────
                 else if (resource === 'job' && operation === 'jobStatus') {
                     const jobId = this.getNodeParameter('jobId', i);
                     if (!jobId || jobId.trim() === '') {
@@ -408,7 +463,7 @@ class DocuProx {
                                 'Accept': 'application/json',
                             },
                             qs: {
-                                job_id: jobId, // ✅ sends as ?job_id=xxx
+                                job_id: jobId,
                             },
                             json: true,
                             timeout: 30000,
