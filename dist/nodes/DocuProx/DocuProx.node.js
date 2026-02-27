@@ -22,13 +22,19 @@ function getMimeType(filename) {
     return mimeTypes[ext] || 'application/octet-stream';
 }
 // ── Helper: parse staticValues safely and return object or undefined ──────────
-function parseStaticValues(raw) {
-    if (!raw)
+function parseStaticValues(raw, label = '') {
+    console.log(`[DocuProx Debug] ${label} raw input:`, JSON.stringify(raw));
+    if (raw === null || raw === undefined)
         return undefined;
+    // ✅ n8n returns [null] or [undefined] for empty json fields — reject any array
+    if (Array.isArray(raw)) {
+        console.log(`[DocuProx Debug] ${label} input is an array, rejecting`);
+        return undefined;
+    }
     let parsed = raw;
     if (typeof parsed === 'string') {
         const trimmed = parsed.trim();
-        if (!trimmed || trimmed === '{}')
+        if (!trimmed || trimmed === '{}' || trimmed === 'null' || trimmed === '[]' || trimmed === '[null]')
             return undefined;
         try {
             parsed = JSON.parse(trimmed);
@@ -37,10 +43,18 @@ function parseStaticValues(raw) {
             return undefined;
         }
     }
-    if (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
-        return parsed;
+    // After parsing, re-check for array or non-object
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        console.log(`[DocuProx Debug] ${label} parsed is not an object/is array, rejecting`);
+        return undefined;
     }
-    return undefined;
+    // Reject empty objects
+    if (Object.keys(parsed).length === 0) {
+        console.log(`[DocuProx Debug] ${label} object is empty, rejecting`);
+        return undefined;
+    }
+    console.log(`[DocuProx Debug] ${label} validation passed`);
+    return parsed;
 }
 class DocuProx {
     constructor() {
@@ -99,6 +113,12 @@ class DocuProx {
                             value: 'process',
                             action: 'Process a document',
                             description: 'Process a document in real-time with a template',
+                        },
+                        {
+                            name: 'Process Agent',
+                            value: 'process_agent',
+                            action: 'Process with agent',
+                            description: 'Process a document using AI agent with custom instructions and extraction prompts',
                         },
                     ],
                     default: 'process',
@@ -190,7 +210,7 @@ class DocuProx {
                     displayOptions: {
                         show: {
                             resource: ['document'],
-                            operation: ['process'],
+                            operation: ['process', 'process_agent'],
                         },
                     },
                 },
@@ -206,7 +226,7 @@ class DocuProx {
                     displayOptions: {
                         show: {
                             resource: ['document'],
-                            operation: ['process'],
+                            operation: ['process', 'process_agent'],
                             imageSource: ['upload'],
                         },
                     },
@@ -226,7 +246,7 @@ class DocuProx {
                     displayOptions: {
                         show: {
                             resource: ['document'],
-                            operation: ['process'],
+                            operation: ['process', 'process_agent'],
                             imageSource: ['base64'],
                         },
                     },
@@ -237,13 +257,27 @@ class DocuProx {
                     name: 'staticValues',
                     type: 'json',
                     required: false,
-                    default: '{}',
+                    default: '',
                     placeholder: '{"name_1": "monika", "city": "dewas"}',
                     description: 'Optional static key-value pairs to send along with the document (object format)',
                     displayOptions: {
                         show: {
                             resource: ['document'],
                             operation: ['process'],
+                        },
+                    },
+                },
+                {
+                    displayName: 'Payload',
+                    name: 'payload',
+                    type: 'json',
+                    required: true,
+                    default: '',
+                    placeholder: '{\n  "document_type": "passport",\n  "custom_instructions": "",\n  "prompt_json": {\n    "passport": "extract passport number"\n  }\n}',
+                    displayOptions: {
+                        show: {
+                            resource: ['document'],
+                            operation: ['process_agent'],
                         },
                     },
                 },
@@ -269,7 +303,7 @@ class DocuProx {
                     name: 'staticValues',
                     type: 'json',
                     required: false,
-                    default: '{}',
+                    default: '',
                     placeholder: '{"name_1": "monika", "city": "dewas"}',
                     description: 'Optional static key-value pairs to send along with the job (object format)',
                     displayOptions: {
@@ -313,13 +347,11 @@ class DocuProx {
         var _a, _b, _c, _d, _e, _f;
         const items = this.getInputData();
         const returnData = [];
-        // ── Base API URL ────────────────────────────────────────────────────────
         const BASE_URL = 'https://awcgg2gryd.execute-api.us-east-1.amazonaws.com/staging/v1';
         for (let i = 0; i < items.length; i++) {
             try {
                 const resource = this.getNodeParameter('resource', i);
                 const operation = this.getNodeParameter('operation', i);
-                // ── Debug: log credentials ──────────────────────────────────────
                 const credentials = await this.getCredentials('docuProxApi', i);
                 console.log(`[DocuProx] i=${i} | Resource=${resource} | Operation=${operation} | API Key: ${credentials.apiKey}`);
                 // ─── PROCESS ───────────────────────────────────────────────────
@@ -351,8 +383,8 @@ class DocuProx {
                         }
                     }
                     // ── Optional static_values ──────────────────────────────────
-                    const rawStaticValues = this.getNodeParameter('staticValues', i, {});
-                    const staticValues = parseStaticValues(rawStaticValues);
+                    const rawStaticValues = this.getNodeParameter('staticValues', i, null);
+                    const staticValues = parseStaticValues(rawStaticValues, 'Document Process');
                     // ── Build request body ──────────────────────────────────────
                     const requestBody = {
                         template_id: templateId,
@@ -361,7 +393,7 @@ class DocuProx {
                     if (staticValues) {
                         requestBody.static_values = staticValues;
                     }
-                    console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${JSON.stringify(staticValues !== null && staticValues !== void 0 ? staticValues : {})}`);
+                    console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
                     const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
                         method: 'POST',
                         url: `${BASE_URL}/process`,
@@ -373,11 +405,78 @@ class DocuProx {
                         json: true,
                         timeout: 60000,
                     });
+                    const processOutput = {
+                        success: true,
+                        templateId,
+                        response,
+                        timestamp: new Date().toISOString(),
+                    };
+                    if (staticValues) {
+                        processOutput.staticValues = staticValues;
+                    }
+                    returnData.push({
+                        json: processOutput,
+                        pairedItem: { item: i },
+                    });
+                }
+                // ─── PROCESS AGENT ─────────────────────────────────────────────
+                else if (resource === 'document' && operation === 'process_agent') {
+                    const imageSource = this.getNodeParameter('imageSource', i);
+                    const payloadRaw = this.getNodeParameter('payload', i);
+                    let payload;
+                    try {
+                        if (typeof payloadRaw === 'string') {
+                            payload = JSON.parse(payloadRaw);
+                        }
+                        else {
+                            payload = payloadRaw;
+                        }
+                    }
+                    catch (e) {
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i });
+                    }
+                    if (!payload || typeof payload !== 'object') {
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i });
+                    }
+                    let imageData;
+                    if (imageSource === 'upload') {
+                        const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i);
+                        if (!binaryPropertyName || binaryPropertyName.trim() === '') {
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+                        }
+                        if (!items[i].binary || !items[i].binary[binaryPropertyName]) {
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i });
+                        }
+                        const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
+                        imageData = buffer.toString('base64');
+                    }
+                    else {
+                        imageData = this.getNodeParameter('base64Image', i);
+                        if (!imageData || imageData.trim() === '') {
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i });
+                        }
+                        if (imageData.includes('base64,')) {
+                            imageData = imageData.split('base64,')[1];
+                        }
+                    }
+                    console.log(`[DocuProx] process-agent → payload: ${JSON.stringify(payload)} | imageLength: ${imageData.length}`);
+                    const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
+                        method: 'POST',
+                        url: `${BASE_URL}/process-agent`,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: {
+                            actual_image: imageData,
+                            payload: payload,
+                        },
+                        json: true,
+                        timeout: 120000,
+                    });
                     returnData.push({
                         json: {
                             success: true,
-                            templateId,
-                            staticValues: staticValues !== null && staticValues !== void 0 ? staticValues : null,
                             response,
                             timestamp: new Date().toISOString(),
                         },
@@ -400,8 +499,8 @@ class DocuProx {
                     const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
                     const zipBase64 = buffer.toString('base64');
                     // ── Optional static_values ────────────────────────────────
-                    const rawStaticValues = this.getNodeParameter('staticValues', i, {});
-                    const staticValues = parseStaticValues(rawStaticValues);
+                    const rawStaticValues = this.getNodeParameter('staticValues', i, null);
+                    const staticValues = parseStaticValues(rawStaticValues, 'Submit Job');
                     // ── Build request body ────────────────────────────────────
                     const requestBody = {
                         template_id: templateId,
@@ -410,7 +509,7 @@ class DocuProx {
                     if (staticValues) {
                         requestBody.static_values = staticValues;
                     }
-                    console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${JSON.stringify(staticValues !== null && staticValues !== void 0 ? staticValues : {})}`);
+                    console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
                     let response;
                     try {
                         response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
@@ -436,14 +535,17 @@ class DocuProx {
                     console.log('========== DocuProx RESPONSE ==========');
                     console.log(JSON.stringify(response, null, 2));
                     console.log('=======================================');
+                    const jobOutput = {
+                        success: true,
+                        templateId,
+                        response,
+                        timestamp: new Date().toISOString(),
+                    };
+                    if (staticValues) {
+                        jobOutput.staticValues = staticValues;
+                    }
                     returnData.push({
-                        json: {
-                            success: true,
-                            templateId,
-                            staticValues: staticValues !== null && staticValues !== void 0 ? staticValues : null,
-                            response,
-                            timestamp: new Date().toISOString(),
-                        },
+                        json: jobOutput,
                         pairedItem: { item: i },
                     });
                 }
@@ -498,14 +600,12 @@ class DocuProx {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
                     }
                     console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
-                    // ✅ CSV returns plain text — don't use json:true for csv
                     const isJson = resultFormat === 'json';
                     const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
                         method: 'POST',
                         url: `${BASE_URL}/job-results`,
                         headers: {
                             'Content-Type': 'application/json',
-                            // ✅ Accept header based on format
                             'Accept': isJson ? 'application/json' : 'text/csv',
                         },
                         body: {
@@ -517,7 +617,6 @@ class DocuProx {
                         timeout: 60000,
                     });
                     if (isJson) {
-                        // ✅ JSON: API returns array — wrap it properly
                         const dataArray = Array.isArray(response) ? response : [response];
                         returnData.push({
                             json: {
@@ -532,9 +631,7 @@ class DocuProx {
                         });
                     }
                     else {
-                        // ✅ CSV: API returns plain text string
                         const csvString = typeof response === 'string' ? response : String(response);
-                        // Count rows (subtract 1 for header row)
                         const rows = csvString.split('\n').filter(line => line.trim() !== '');
                         const totalRecords = rows.length > 1 ? rows.length - 1 : 0;
                         returnData.push({
@@ -546,7 +643,6 @@ class DocuProx {
                                 results_csv: csvString,
                                 timestamp: new Date().toISOString(),
                             },
-                            // ✅ Also attach CSV as binary so user can download it
                             binary: {
                                 data: await this.helpers.prepareBinaryData(Buffer.from(csvString, 'utf8'), `job_${jobId}_results.csv`, 'text/csv'),
                             },

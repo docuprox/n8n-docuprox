@@ -31,14 +31,22 @@ function getMimeType(filename: string): string {
 }
 
 // ── Helper: parse staticValues safely and return object or undefined ──────────
-function parseStaticValues(raw: any): Record<string, any> | undefined {
-	if (!raw) return undefined;
+function parseStaticValues(raw: any, label: string = ''): Record<string, any> | undefined {
+	console.log(`[DocuProx Debug] ${label} raw input:`, JSON.stringify(raw));
+
+	if (raw === null || raw === undefined) return undefined;
+
+	// ✅ n8n returns [null] or [undefined] for empty json fields — reject any array
+	if (Array.isArray(raw)) {
+		console.log(`[DocuProx Debug] ${label} input is an array, rejecting`);
+		return undefined;
+	}
 
 	let parsed = raw;
 
 	if (typeof parsed === 'string') {
 		const trimmed = parsed.trim();
-		if (!trimmed || trimmed === '{}') return undefined;
+		if (!trimmed || trimmed === '{}' || trimmed === 'null' || trimmed === '[]' || trimmed === '[null]') return undefined;
 		try {
 			parsed = JSON.parse(trimmed);
 		} catch {
@@ -46,11 +54,20 @@ function parseStaticValues(raw: any): Record<string, any> | undefined {
 		}
 	}
 
-	if (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
-		return parsed;
+	// After parsing, re-check for array or non-object
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		console.log(`[DocuProx Debug] ${label} parsed is not an object/is array, rejecting`);
+		return undefined;
 	}
 
-	return undefined;
+	// Reject empty objects
+	if (Object.keys(parsed).length === 0) {
+		console.log(`[DocuProx Debug] ${label} object is empty, rejecting`);
+		return undefined;
+	}
+
+	console.log(`[DocuProx Debug] ${label} validation passed`);
+	return parsed;
 }
 
 export class DocuProx implements INodeType {
@@ -112,6 +129,12 @@ export class DocuProx implements INodeType {
 						value: 'process',
 						action: 'Process a document',
 						description: 'Process a document in real-time with a template',
+					},
+					{
+						name: 'Process Agent',
+						value: 'process_agent',
+						action: 'Process with agent',
+						description: 'Process a document using AI agent with custom instructions and extraction prompts',
 					},
 				],
 				default: 'process',
@@ -207,7 +230,7 @@ export class DocuProx implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['process'],
+						operation: ['process', 'process_agent'],
 					},
 				},
 			},
@@ -224,7 +247,7 @@ export class DocuProx implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['process'],
+						operation: ['process', 'process_agent'],
 						imageSource: ['upload'],
 					},
 				},
@@ -245,7 +268,7 @@ export class DocuProx implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['process'],
+						operation: ['process', 'process_agent'],
 						imageSource: ['base64'],
 					},
 				},
@@ -257,13 +280,27 @@ export class DocuProx implements INodeType {
 				name: 'staticValues',
 				type: 'json',
 				required: false,
-				default: '{}',
+				default: '',
 				placeholder: '{"name_1": "monika", "city": "dewas"}',
 				description: 'Optional static key-value pairs to send along with the document (object format)',
 				displayOptions: {
 					show: {
 						resource: ['document'],
 						operation: ['process'],
+					},
+				},
+			},
+			{
+				displayName: 'Payload',
+				name: 'payload',
+				type: 'json',
+				required: true,
+				default: '',
+				placeholder: '{\n  "document_type": "passport",\n  "custom_instructions": "",\n  "prompt_json": {\n    "passport": "extract passport number"\n  }\n}',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process_agent'],
 					},
 				},
 			},
@@ -291,7 +328,7 @@ export class DocuProx implements INodeType {
 				name: 'staticValues',
 				type: 'json',
 				required: false,
-				default: '{}',
+				default: '',
 				placeholder: '{"name_1": "monika", "city": "dewas"}',
 				description: 'Optional static key-value pairs to send along with the job (object format)',
 				displayOptions: {
@@ -336,7 +373,6 @@ export class DocuProx implements INodeType {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
-		// ── Base API URL ────────────────────────────────────────────────────────
 		const BASE_URL = 'https://awcgg2gryd.execute-api.us-east-1.amazonaws.com/staging/v1';
 
 		for (let i = 0; i < items.length; i++) {
@@ -344,7 +380,6 @@ export class DocuProx implements INodeType {
 				const resource = this.getNodeParameter('resource', i) as string;
 				const operation = this.getNodeParameter('operation', i) as string;
 
-				// ── Debug: log credentials ──────────────────────────────────────
 				const credentials = await this.getCredentials('docuProxApi', i);
 				console.log(`[DocuProx] i=${i} | Resource=${resource} | Operation=${operation} | API Key: ${credentials.apiKey}`);
 
@@ -398,8 +433,8 @@ export class DocuProx implements INodeType {
 					}
 
 					// ── Optional static_values ──────────────────────────────────
-					const rawStaticValues = this.getNodeParameter('staticValues', i, {}) as any;
-					const staticValues = parseStaticValues(rawStaticValues);
+					const rawStaticValues = this.getNodeParameter('staticValues', i, null) as any;
+					const staticValues = parseStaticValues(rawStaticValues, 'Document Process');
 
 					// ── Build request body ──────────────────────────────────────
 					const requestBody: Record<string, any> = {
@@ -411,7 +446,7 @@ export class DocuProx implements INodeType {
 						requestBody.static_values = staticValues;
 					}
 
-					console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${JSON.stringify(staticValues ?? {})}`);
+					console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
 
 					const response = await this.helpers.httpRequestWithAuthentication.call(
 						this,
@@ -429,11 +464,88 @@ export class DocuProx implements INodeType {
 						},
 					);
 
+					const processOutput: Record<string, any> = {
+						success: true,
+						templateId,
+						response,
+						timestamp: new Date().toISOString(),
+					};
+					if (staticValues) {
+						processOutput.staticValues = staticValues;
+					}
+
+					returnData.push({
+						json: processOutput,
+						pairedItem: { item: i },
+					});
+				}
+
+				// ─── PROCESS AGENT ─────────────────────────────────────────────
+				else if (resource === 'document' && operation === 'process_agent') {
+					const imageSource = this.getNodeParameter('imageSource', i) as string;
+					const payloadRaw = this.getNodeParameter('payload', i) as any;
+
+					let payload: any;
+					try {
+						if (typeof payloadRaw === 'string') {
+							payload = JSON.parse(payloadRaw);
+						} else {
+							payload = payloadRaw;
+						}
+					} catch (e) {
+						throw new NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i });
+					}
+
+					if (!payload || typeof payload !== 'object') {
+						throw new NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i });
+					}
+
+					let imageData: string;
+
+					if (imageSource === 'upload') {
+						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+						if (!binaryPropertyName || binaryPropertyName.trim() === '') {
+							throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+						}
+						if (!items[i].binary || !items[i].binary![binaryPropertyName]) {
+							throw new NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i });
+						}
+						const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
+						imageData = buffer.toString('base64');
+					} else {
+						imageData = this.getNodeParameter('base64Image', i) as string;
+						if (!imageData || imageData.trim() === '') {
+							throw new NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i });
+						}
+						if (imageData.includes('base64,')) {
+							imageData = imageData.split('base64,')[1];
+						}
+					}
+
+					console.log(`[DocuProx] process-agent → payload: ${JSON.stringify(payload)} | imageLength: ${imageData.length}`);
+
+					const response = await this.helpers.httpRequestWithAuthentication.call(
+						this,
+						'docuProxApi',
+						{
+							method: 'POST',
+							url: `${BASE_URL}/process-agent`,
+							headers: {
+								'Content-Type': 'application/json',
+								'Accept': 'application/json',
+							},
+							body: {
+								actual_image: imageData,
+								payload: payload,
+							},
+							json: true,
+							timeout: 120000,
+						},
+					);
+
 					returnData.push({
 						json: {
 							success: true,
-							templateId,
-							staticValues: staticValues ?? null,
 							response,
 							timestamp: new Date().toISOString(),
 						},
@@ -466,8 +578,8 @@ export class DocuProx implements INodeType {
 					const zipBase64 = buffer.toString('base64');
 
 					// ── Optional static_values ────────────────────────────────
-					const rawStaticValues = this.getNodeParameter('staticValues', i, {}) as any;
-					const staticValues = parseStaticValues(rawStaticValues);
+					const rawStaticValues = this.getNodeParameter('staticValues', i, null) as any;
+					const staticValues = parseStaticValues(rawStaticValues, 'Submit Job');
 
 					// ── Build request body ────────────────────────────────────
 					const requestBody: Record<string, any> = {
@@ -479,7 +591,7 @@ export class DocuProx implements INodeType {
 						requestBody.static_values = staticValues;
 					}
 
-					console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${JSON.stringify(staticValues ?? {})}`);
+					console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
 
 					let response: any;
 					try {
@@ -515,14 +627,18 @@ export class DocuProx implements INodeType {
 					console.log(JSON.stringify(response, null, 2));
 					console.log('=======================================');
 
+					const jobOutput: Record<string, any> = {
+						success: true,
+						templateId,
+						response,
+						timestamp: new Date().toISOString(),
+					};
+					if (staticValues) {
+						jobOutput.staticValues = staticValues;
+					}
+
 					returnData.push({
-						json: {
-							success: true,
-							templateId,
-							staticValues: staticValues ?? null,
-							response,
-							timestamp: new Date().toISOString(),
-						},
+						json: jobOutput,
 						pairedItem: { item: i },
 					});
 				}
@@ -594,7 +710,6 @@ export class DocuProx implements INodeType {
 
 					console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
 
-					// ✅ CSV returns plain text — don't use json:true for csv
 					const isJson = resultFormat === 'json';
 
 					const response = await this.helpers.httpRequestWithAuthentication.call(
@@ -605,21 +720,19 @@ export class DocuProx implements INodeType {
 							url: `${BASE_URL}/job-results`,
 							headers: {
 								'Content-Type': 'application/json',
-								// ✅ Accept header based on format
 								'Accept': isJson ? 'application/json' : 'text/csv',
 							},
 							body: {
 								job_id: jobId,
 								result_format: resultFormat,
 							},
-							json: isJson,       // ✅ only parse as JSON when format is json
-							encoding: isJson ? undefined : 'utf8',  // ✅ read CSV as plain string
+							json: isJson,
+							encoding: isJson ? undefined : 'utf8',
 							timeout: 60000,
 						},
 					);
 
 					if (isJson) {
-						// ✅ JSON: API returns array — wrap it properly
 						const dataArray = Array.isArray(response) ? response : [response];
 
 						returnData.push({
@@ -635,10 +748,7 @@ export class DocuProx implements INodeType {
 						});
 
 					} else {
-						// ✅ CSV: API returns plain text string
 						const csvString = typeof response === 'string' ? response : String(response);
-
-						// Count rows (subtract 1 for header row)
 						const rows = csvString.split('\n').filter(line => line.trim() !== '');
 						const totalRecords = rows.length > 1 ? rows.length - 1 : 0;
 
@@ -651,7 +761,6 @@ export class DocuProx implements INodeType {
 								results_csv: csvString,
 								timestamp: new Date().toISOString(),
 							},
-							// ✅ Also attach CSV as binary so user can download it
 							binary: {
 								data: await this.helpers.prepareBinaryData(
 									Buffer.from(csvString, 'utf8'),
