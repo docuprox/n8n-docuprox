@@ -373,7 +373,7 @@ export class DocuProx implements INodeType {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
-		const BASE_URL = 'https://awcgg2gryd.execute-api.us-east-1.amazonaws.com/staging/v1';
+		const BASE_URL = "https://api.docuprox.com/v1";
 
 		for (let i = 0; i < items.length; i++) {
 			try {

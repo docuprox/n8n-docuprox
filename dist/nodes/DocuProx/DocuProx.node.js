@@ -347,7 +347,7 @@ class DocuProx {
         var _a, _b, _c, _d, _e, _f;
         const items = this.getInputData();
         const returnData = [];
-        const BASE_URL = 'https://awcgg2gryd.execute-api.us-east-1.amazonaws.com/staging/v1';
+        const BASE_URL = "https://api.docuprox.com/v1";
         for (let i = 0; i < items.length; i++) {
             try {
                 const resource = this.getNodeParameter('resource', i);
