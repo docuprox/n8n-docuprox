@@ -14,8 +14,6 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: production
-    env:
-      NODE_ENV: production
 
     steps:
       - name: Checkout
@@ -52,4 +50,5 @@ jobs:
         if: steps.version_check.outputs.exists == 'false'
         run: npm publish --access public --provenance
         env:
+          NODE_ENV: production
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
