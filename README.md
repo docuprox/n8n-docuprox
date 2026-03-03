@@ -79,8 +79,15 @@ The node includes comprehensive error handling and will return error details if 
 ### Scripts
 - `npm run build`: Build the TypeScript code and copy assets
 - `npm run dev`: Watch mode for development
-- `npm run format`: Format code with Prettier
-- `npm run lint`: Lint code with ESLint
+
+## Release and npm publish
+
+Publishing is automated through GitHub Actions with npm provenance.
+
+1. Add an npm automation token as `NPM_TOKEN` in the GitHub repository secrets
+2. Bump `version` in `package.json`
+3. Create and push a tag matching that version in `vX.Y.Z` format (for example `v1.0.8`)
+4. The `Publish to npm` workflow will build and run `npm publish --provenance`
 
 ### Project Structure
 ```
