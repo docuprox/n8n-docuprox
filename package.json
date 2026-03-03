@@ -23,7 +23,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc && npm run copy-assets",
-    "copy-assets": "if exist nodes\\DocuProx\\*.svg xcopy /Y nodes\\DocuProx\\*.svg dist\\nodes\\DocuProx\\",
+    "copy-assets": "node -e \"const fs=require('fs');const path=require('path');const srcDir='nodes/DocuProx';const dstDir='dist/nodes/DocuProx';if(fs.existsSync(srcDir)){fs.mkdirSync(dstDir,{recursive:true});for(const f of fs.readdirSync(srcDir)){if(f.endsWith('.svg'))fs.copyFileSync(path.join(srcDir,f),path.join(dstDir,f));}}\"",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
