@@ -125,19 +125,19 @@ export class DocuProx implements INodeType {
 				},
 				options: [
 					{
-						name: 'Process',
-						value: 'process',
-						action: 'Process a document',
-						description: 'Process a document in real-time with a template',
-					},
-					{
 						name: 'Process Agent',
 						value: 'process_agent',
 						action: 'Process with agent',
 						description: 'Process a document using AI agent with custom instructions and extraction prompts',
 					},
+					{
+						name: 'Process',
+						value: 'process',
+						action: 'Process a document',
+						description: 'Process a document in real-time with a template',
+					},
 				],
-				default: 'process',
+				default: 'process_agent',
 				required: true,
 			},
 
