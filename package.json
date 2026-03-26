@@ -30,7 +30,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc && npm run copy-assets",
-    "copy-assets": "if exist nodes\\DocuProx\\*.svg xcopy /Y nodes\\DocuProx\\*.svg dist\\nodes\\DocuProx\\",
+    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='nodes/DocuProx',dst='dist/nodes/DocuProx';if(fs.existsSync(src)){fs.readdirSync(src).filter(f=>f.endsWith('.svg')||f.endsWith('.png')).forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dst,f)))}\"",
     "dev": "tsc --watch",
     "format": "prettier nodes --write",
     "lint": "eslint nodes package.json",
