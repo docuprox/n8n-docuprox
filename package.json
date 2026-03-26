@@ -1,14 +1,17 @@
 {
   "name": "n8n-nodes-docuprox",
-  "version": "1.0.7",
-  "description": "A n8n Node for processing files and base64 data using the Docuprox API. Easily integrate automated document processing and data extraction into your applications.",
+  "version": "1.0.9",
+  "description": "An advanced n8n node for document processing using the DocuProx API. Supports real-time structured data extraction via predefined Template IDs, AI-powered Process Agents with custom instructions, and high-volume batch job management (ZIP submission, status tracking, and JSON/CSV result retrieval) for automated document workflows.",
   "keywords": [
     "n8n",
     "n8n-nodes",
     "n8n-community-node-package",
     "docuprox",
-    "document-processing",
-    "api"
+    "ai-extraction",
+    "ocr",
+    "process-agent",
+    "batch-document-processing",
+    "structured-data"
   ],
   "license": "MIT",
   "homepage": "https://github.com/docuprox/n8n-docuprox",

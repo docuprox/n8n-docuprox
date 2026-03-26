@@ -65,6 +65,7 @@ class DocuProx {
             group: ['transform'],
             version: 1,
             description: 'Process documents using DocuProx API',
+            documentationUrl: 'https://docuprox.com/docs/',
             defaults: {
                 name: 'DocuProx',
             },
@@ -77,6 +78,17 @@ class DocuProx {
                 },
             ],
             properties: [
+                {
+                    displayName: 'Need help setting up? Check out our <a href="https://docuprox.com/docs/getting-started/" target="_blank">Documentation Guide</a>.',
+                    name: 'helpNotice',
+                    type: 'notice',
+                    default: '',
+                    displayOptions: {
+                        show: {
+                            resource: ['document', 'job'],
+                        },
+                    },
+                },
                 // ─── Resource Selector ─────────────────────────────────────────────
                 {
                     displayName: 'Resource',
@@ -268,6 +280,150 @@ class DocuProx {
                     },
                 },
                 {
+                    displayName: 'Selection Method',
+                    name: 'selectionMethod',
+                    type: 'options',
+                    displayOptions: {
+                        show: {
+                            resource: ['document'],
+                            operation: ['process_agent'],
+                        },
+                    },
+                    options: [
+                        {
+                            name: 'Structured (Form)',
+                            value: 'structured',
+                            description: 'Add properties individually using fields',
+                        },
+                        {
+                            name: 'Manual (JSON)',
+                            value: 'manual',
+                            description: 'Provide payload as a raw JSON blob',
+                        },
+                    ],
+                    default: 'structured',
+                    description: 'Select how you want to provide the agent payload',
+                },
+                {
+                    displayName: 'Document Type',
+                    name: 'documentType',
+                    type: 'string',
+                    required: true,
+                    default: '',
+                    placeholder: 'e.g. passport',
+                    description: 'The type of document to process',
+                    displayOptions: {
+                        show: {
+                            resource: ['document'],
+                            operation: ['process_agent'],
+                            selectionMethod: ['structured'],
+                        },
+                    },
+                },
+                {
+                    displayName: 'Custom Instructions',
+                    name: 'customInstructions',
+                    type: 'string',
+                    required: false,
+                    default: '',
+                    placeholder: 'e.g. Please extract all the relevant fields carefully',
+                    description: 'Additional instructions for the AI agent',
+                    displayOptions: {
+                        show: {
+                            resource: ['document'],
+                            operation: ['process_agent'],
+                            selectionMethod: ['structured'],
+                        },
+                    },
+                },
+                {
+                    displayName: 'Prompts',
+                    name: 'prompts',
+                    type: 'fixedCollection',
+                    typeOptions: {
+                        multipleValues: true,
+                    },
+                    placeholder: 'Add Prompt',
+                    default: {
+                        values: [
+                            {
+                                key: '',
+                                value: '',
+                            },
+                        ],
+                    },
+                    options: [
+                        {
+                            name: 'values',
+                            displayName: 'Values',
+                            values: [
+                                {
+                                    displayName: 'Key',
+                                    name: 'key',
+                                    type: 'string',
+                                    default: '',
+                                    placeholder: 'e.g. passport_number',
+                                    description: 'The logical name for this extracted field',
+                                },
+                                {
+                                    displayName: 'Instruction',
+                                    name: 'value',
+                                    type: 'string',
+                                    default: '',
+                                    placeholder: 'e.g. extract the passport number from the top right',
+                                    description: 'Instruction for the agent on what to extract for this field',
+                                },
+                            ],
+                        },
+                    ],
+                    description: 'Define specific extraction prompts for the agent',
+                    displayOptions: {
+                        show: {
+                            resource: ['document'],
+                            operation: ['process_agent'],
+                            selectionMethod: ['structured'],
+                        },
+                    },
+                },
+                {
+                    displayName: 'Static Values',
+                    name: 'staticValuesAgent',
+                    type: 'fixedCollection',
+                    typeOptions: {
+                        multipleValues: true,
+                    },
+                    placeholder: 'Add Static Value',
+                    default: {},
+                    options: [
+                        {
+                            name: 'values',
+                            displayName: 'Static Values',
+                            values: [
+                                {
+                                    displayName: 'Key',
+                                    name: 'key',
+                                    type: 'string',
+                                    default: '',
+                                },
+                                {
+                                    displayName: 'Value',
+                                    name: 'value',
+                                    type: 'string',
+                                    default: '',
+                                },
+                            ],
+                        },
+                    ],
+                    description: 'Additional static metadata to include in the payload',
+                    displayOptions: {
+                        show: {
+                            resource: ['document'],
+                            operation: ['process_agent'],
+                            selectionMethod: ['structured'],
+                        },
+                    },
+                },
+                {
                     displayName: 'Payload',
                     name: 'payload',
                     type: 'json',
@@ -278,6 +434,7 @@ class DocuProx {
                         show: {
                             resource: ['document'],
                             operation: ['process_agent'],
+                            selectionMethod: ['manual'],
                         },
                     },
                 },
@@ -422,18 +579,50 @@ class DocuProx {
                 // ─── PROCESS AGENT ─────────────────────────────────────────────
                 else if (resource === 'document' && operation === 'process_agent') {
                     const imageSource = this.getNodeParameter('imageSource', i);
-                    const payloadRaw = this.getNodeParameter('payload', i);
+                    const selectionMethod = this.getNodeParameter('selectionMethod', i, 'structured');
                     let payload;
-                    try {
-                        if (typeof payloadRaw === 'string') {
-                            payload = JSON.parse(payloadRaw);
+                    if (selectionMethod === 'manual') {
+                        const payloadRaw = this.getNodeParameter('payload', i);
+                        try {
+                            if (typeof payloadRaw === 'string') {
+                                payload = JSON.parse(payloadRaw);
+                            }
+                            else {
+                                payload = payloadRaw;
+                            }
                         }
-                        else {
-                            payload = payloadRaw;
+                        catch (e) {
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i });
                         }
                     }
-                    catch (e) {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i });
+                    else {
+                        // Structured Mode: Build payload from individual fields
+                        const documentType = this.getNodeParameter('documentType', i, '');
+                        const customInstructions = this.getNodeParameter('customInstructions', i, '');
+                        const prompts = this.getNodeParameter('prompts', i, { values: [] });
+                        const staticValuesArr = this.getNodeParameter('staticValuesAgent', i, { values: [] });
+                        payload = {
+                            document_type: documentType,
+                            custom_instructions: customInstructions,
+                            prompt_json: {},
+                            static_values: {},
+                        };
+                        // Build prompt_json object
+                        if (prompts.values) {
+                            for (const prompt of prompts.values) {
+                                if (prompt.key) {
+                                    payload.prompt_json[prompt.key] = prompt.value;
+                                }
+                            }
+                        }
+                        // Build static_values object
+                        if (staticValuesArr.values) {
+                            for (const val of staticValuesArr.values) {
+                                if (val.key) {
+                                    payload.static_values[val.key] = val.value;
+                                }
+                            }
+                        }
                     }
                     if (!payload || typeof payload !== 'object') {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i });

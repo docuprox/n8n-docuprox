@@ -4,7 +4,13 @@ An n8n custom node for integrating with the DocuProx API to process documents us
 
 ## Description
 
-This n8n node allows you to process documents by providing a template ID and an image (either as a binary file upload or base64 encoded string). The node communicates with the DocuProx API to extract structured data from documents based on predefined templates.
+This n8n node allows you to process documents using the DocuProx API. It supports:
+
+- **Real-time Processing**: Process individual documents with predefined templates.
+- **Process Agent**: Use AI-powered extraction with custom prompts (no template needed).
+- **Batch Jobs**: Submit a ZIP of files for background processing and retrieve results later.
+
+Check out our full [Documentation & Usage Guide](https://docuprox.com/docs/) for more details.
 
 ## Installation
 
@@ -23,15 +29,17 @@ This n8n node allows you to process documents by providing a template ID and an 
 
 ## Usage
 
-1. Add the "DocuProx" node to your n8n workflow
-2. Configure your DocuProx API credentials (see Configuration section)
-3. Set the Template ID for the document processing template you want to use
-4. Choose your image source:
-   - **Upload Image File**: Provide the binary property name containing the image file
-   - **Base64 String**: Directly input the base64 encoded image data
-5. Execute the workflow
-
-The node will return the processed document data from the DocuProx API.
+1. **Add Node**: Drag the DocuProx node into your workflow.
+2. **Configure Credentials**: Set up your DocuProx API key.
+3. **Select Resource**:
+   - **Document**: For real-time processing.
+     - _Operation - Process_: Use a Template ID.
+     - _Operation - Process Agent_: Use the **Structured Form** to add extraction prompts (e.g. key: `passport_no`, value: `extract the ID number`).
+   - **Job**: For batch processing.
+     - _Submit Job_: Upload a ZIP file and get a `Job ID`.
+     - _Get Job Status_: Check if your batch is ready.
+     - _Get Job Results_: Retrieve results in JSON or CSV format.
+4. **Execute**: Run the node to get your structured document data.
 
 ## Configuration
 
@@ -57,32 +65,38 @@ Before using the node, you need to set up your DocuProx API credentials:
 ## API Reference
 
 ### Input
+
 - Template ID: String
 - Image: Binary file or Base64 string
 
 ### Output
+
 - Success status
 - Template ID used
 - API response data
 - Timestamp
 
 ### Error Handling
+
 The node includes comprehensive error handling and will return error details if the API call fails. You can configure the node to continue on failure or stop the workflow.
 
 ## Development
 
 ### Prerequisites
+
 - Node.js
 - npm
 - n8n instance
 
 ### Scripts
+
 - `npm run build`: Build the TypeScript code and copy assets
 - `npm run dev`: Watch mode for development
 - `npm run format`: Format code with Prettier
 - `npm run lint`: Lint code with ESLint
 
 ### Project Structure
+
 ```
 ├── credentials/
 │   └── DocuProxApi.credentials.ts    # API credentials definition
