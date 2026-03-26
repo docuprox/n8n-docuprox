@@ -1,14 +1,21 @@
 {
   "name": "n8n-nodes-docuprox",
-  "version": "1.0.8",
-  "description": "A n8n Node for processing files and base64 data using the Docuprox API. Easily integrate automated document processing and data extraction into your applications.",
+  "version": "1.0.9",
+  "description": "An n8n community node for AI-powered document processing via the DocuProx API. Extract structured data from documents using manual or AI-generated prompts — no template required. Supports real-time processing and high-volume batch jobs.",
   "keywords": [
     "n8n",
     "n8n-nodes",
     "n8n-community-node-package",
     "docuprox",
     "document-processing",
-    "api"
+    "document-extraction",
+    "document-ai",
+    "ai-extraction",
+    "ai-agent",
+    "data-extraction",
+    "document-automation",
+    "batch-processing",
+    "structured-data"
   ],
   "license": "MIT",
   "homepage": "https://github.com/docuprox/n8n-docuprox",
@@ -23,8 +30,10 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc && npm run copy-assets",
-    "copy-assets": "node -e \"const fs=require('fs');const path=require('path');const srcDir='nodes/DocuProx';const dstDir='dist/nodes/DocuProx';if(fs.existsSync(srcDir)){fs.mkdirSync(dstDir,{recursive:true});for(const f of fs.readdirSync(srcDir)){if(f.endsWith('.svg'))fs.copyFileSync(path.join(srcDir,f),path.join(dstDir,f));}}\"",
+    "copy-assets": "if exist nodes\\DocuProx\\*.svg xcopy /Y nodes\\DocuProx\\*.svg dist\\nodes\\DocuProx\\",
     "dev": "tsc --watch",
+    "format": "prettier nodes --write",
+    "lint": "eslint nodes package.json",
     "prepublishOnly": "npm run build"
   },
   "files": [

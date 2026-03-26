@@ -1,95 +1,179 @@
 # n8n-nodes-docuprox
 
-An n8n custom node for integrating with the DocuProx API to process documents using AI-powered document processing templates.
+[![npm version](https://img.shields.io/npm/v/n8n-nodes-docuprox.svg)](https://www.npmjs.com/package/n8n-nodes-docuprox)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![n8n community node](https://img.shields.io/badge/n8n-community%20node-orange)](https://www.npmjs.com/package/n8n-nodes-docuprox)
 
-## Description
+An **n8n community node** for AI-powered document processing and data extraction via the [DocuProx API](https://docuprox.com). Extract structured data from documents using manual or AI-generated prompts — no template required.
 
-This n8n node allows you to process documents by providing a template ID and an image (either as a binary file upload or base64 encoded string). The node communicates with the DocuProx API to extract structured data from documents based on predefined templates.
+> Automate document data extraction in your n8n workflows. Supports invoices, passports, ID cards, receipts, contracts, and more.
+
+## What is DocuProx?
+
+[DocuProx](https://docuprox.com) is an AI-powered document extraction platform. This n8n node lets you integrate DocuProx directly into your automation workflows — extract structured fields from any document image in real-time or process thousands of documents via batch jobs.
+
+## Features
+
+- **AI Agent Extraction** — Extract any field using natural language prompts. No dashboard template needed.
+- **Template-Based Extraction** — Use a pre-built Template ID (UUID) from your DocuProx dashboard for consistent, structured extraction.
+- **Batch Processing** — Submit a ZIP of documents for high-volume background processing and retrieve results in JSON or CSV.
+- **Flexible Input** — Supports binary file uploads and Base64 encoded images.
+- **Real-Time Results** — Synchronous processing returns structured data immediately.
+
+## Supported Document Types
+
+Works with any document type, including:
+
+- Passports & ID Cards
+- Invoices & Receipts
+- Contracts & Agreements
+- Bank Statements
+- Medical Records
+- Custom document types via AI prompts
 
 ## Installation
 
-1. Clone or download this repository
-2. Navigate to the project directory
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Build the project:
-   ```bash
-   npm run build
-   ```
-5. Copy the `dist` folder to your n8n custom nodes directory
-6. Restart n8n
+### Via n8n Community Nodes (Recommended)
+
+1. Open your n8n instance
+2. Go to **Settings → Community Nodes**
+3. Search for `n8n-nodes-docuprox`
+4. Click **Install**
+5. Restart n8n
+
+### Manual Installation
+
+```bash
+npm install n8n-nodes-docuprox
+```
+
+## Credentials Setup
+
+1. Go to **Settings → Credentials** in your n8n instance
+2. Create a new credential of type **DocuProx API**
+3. Enter your [DocuProx API key](https://docuprox.com)
+4. Save the credential
 
 ## Usage
 
-1. Add the "DocuProx" node to your n8n workflow
-2. Configure your DocuProx API credentials (see Configuration section)
-3. Set the Template ID for the document processing template you want to use
-4. Choose your image source:
-   - **Upload Image File**: Provide the binary property name containing the image file
-   - **Base64 String**: Directly input the base64 encoded image data
-5. Execute the workflow
+### Document → Process Agent _(AI extraction, no template needed)_
 
-The node will return the processed document data from the DocuProx API.
+Use natural language prompts to extract any field from a document without creating a dashboard template.
 
-## Configuration
+1. Select **Resource**: `Document`
+2. Select **Operation**: `Process Agent`
+3. Choose **Selection Method**: `Structured Form`
+4. Set **Document Type** (e.g. `passport`, `invoice`)
+5. Add **Prompts** — define fields to extract:
+   - Key: `passport_number` → Instruction: `Extract the passport number`
+   - Key: `full_name` → Instruction: `Extract the full name`
+6. Upload your document image
 
-### Credentials Setup
+### Document → Process _(Template-based extraction)_
 
-Before using the node, you need to set up your DocuProx API credentials:
+Use a Template ID (UUID) from your DocuProx dashboard for structured extraction.
 
-1. Go to your n8n instance
-2. Navigate to Settings > Credentials
-3. Create a new credential of type "DocuProx API"
-4. Enter your DocuProx API key
-5. Save the credential
+1. Select **Resource**: `Document`
+2. Select **Operation**: `Process`
+3. Enter your **Template ID** (UUID)
+4. Upload your document image
 
-### Node Properties
+### Job → Batch Processing
 
-- **Template ID** (required): The ID of the template to use for document processing
-- **Image Source** (required):
-  - Upload Image File: Upload an image file from binary data
-  - Base64 String: Provide image as Base64 encoded string
-- **Binary Property Name** (required when using Upload): Name of the binary property containing the image file
-- **Base64 Image** (required when using Base64): The base64 encoded image data
+Submit a ZIP file containing multiple documents for high-volume background processing.
+
+1. **Submit Job** — Upload ZIP + Template ID → returns a `Job ID`
+2. **Get Job Status** — Poll with `Job ID` until status is `SUCCESS`
+3. **Get Job Results** — Retrieve extracted data in JSON or CSV format
+
+## Node Properties
+
+**Document → Process**
+| Field | Required | Description |
+|---|---|---|
+| Template ID | Yes | UUID from your DocuProx dashboard |
+| Image Source | Yes | Binary file upload or Base64 string |
+| Static Values | No | Additional key-value metadata |
+
+**Document → Process Agent**
+| Field | Required | Description |
+|---|---|---|
+| Selection Method | Yes | Structured Form or Manual JSON |
+| Document Type | Yes | e.g. `passport`, `invoice`, `receipt` |
+| Custom Instructions | No | Natural language guidance for the AI |
+| Prompts | Yes | Field name + extraction instruction pairs |
+| Static Values | No | Additional key-value metadata |
+
+**Job → Submit Job**
+| Field | Required | Description |
+|---|---|---|
+| Template ID | Yes | UUID from your DocuProx dashboard |
+| Binary Property Name | Yes | Property containing the ZIP file |
+| Static Values | No | Additional key-value metadata |
+
+**Job → Get Job Status / Get Job Results**
+| Field | Required | Description |
+|---|---|---|
+| Job ID | Yes | UUID returned from Submit Job |
+| Result Format | No | `json` (default) or `csv` |
+
+## Job Status Values
+
+| Status | Description |
+|---|---|
+| `NEW` | Job created and queued for processing |
+| `UNZIP FILE` | Extracting files from the uploaded ZIP archive |
+| `UNZIP FILE SUCCESS` | ZIP extraction completed successfully |
+| `UNZIP FILE FAILED` | ZIP extraction failed |
+| `PROCESS IMAGE` | Processing document images for data extraction |
+| `PROCESS IMAGE SUCCESS` | Image processing completed successfully |
+| `PROCESS IMAGE FAILED` | Image processing failed |
+| `SUCCESS` | Job completed — results are ready to retrieve |
+| `FAILED` | Job processing failed |
 
 ## API Reference
 
 ### Input
-- Template ID: String
-- Image: Binary file or Base64 string
+
+| Operation | Key Inputs |
+|---|---|
+| Process | Template ID (UUID), Image (binary or Base64), Static Values (optional) |
+| Process Agent | Document Type, Custom Instructions, Prompts (key-value), Image |
+| Submit Job | Template ID (UUID), ZIP file (binary), Static Values (optional) |
+| Get Job Status | Job ID (UUID) |
+| Get Job Results | Job ID (UUID), Result Format (JSON or CSV) |
 
 ### Output
-- Success status
-- Template ID used
-- API response data
-- Timestamp
+
+| Operation | Output Fields |
+|---|---|
+| Process | `success`, `templateId`, `response`, `timestamp` |
+| Process Agent | `success`, `response`, `timestamp` |
+| Submit Job | `success`, `templateId`, `response`, `timestamp` |
+| Get Job Status | `success`, `jobId`, `response`, `timestamp` |
+| Get Job Results | `success`, `jobId`, `resultFormat`, `total_records`, `results` / `results_csv` |
 
 ### Error Handling
-The node includes comprehensive error handling and will return error details if the API call fails. You can configure the node to continue on failure or stop the workflow.
+
+The node includes built-in error handling. Enable **Continue on Fail** in the node settings to handle errors gracefully within your workflow.
+
+## Resources
+
+- [DocuProx Documentation](https://docuprox.com/docs/)
+- [Getting Started Guide](https://docuprox.com/docs/getting-started/)
+- [n8n Integration Guide](https://docuprox.com/docs/integration/n8n/)
+- [DocuProx Dashboard](https://app.docuprox.com/login)
 
 ## Development
 
-### Prerequisites
-- Node.js
-- npm
-- n8n instance
-
-### Scripts
-- `npm run build`: Build the TypeScript code and copy assets
-- `npm run dev`: Watch mode for development
-
-## Release and npm publish
-
-Publishing is automated through GitHub Actions with npm provenance.
-
-1. Add an npm automation token as `NPM_TOKEN` in the GitHub repository secrets
-2. Bump `version` in `package.json`
-3. Create and push a tag matching that version in `vX.Y.Z` format (for example `v1.0.8`)
-4. The `Publish to npm` workflow will build and run `npm publish --provenance`
+```bash
+npm install       # Install dependencies
+npm run build     # Build TypeScript
+npm run dev       # Watch mode
+```
 
 ### Project Structure
+
 ```
 ├── credentials/
 │   └── DocuProxApi.credentials.ts    # API credentials definition
@@ -99,9 +183,15 @@ Publishing is automated through GitHub Actions with npm provenance.
 │       └── douprox-logo.svg          # Node icon
 ├── dist/                             # Built files
 ├── package.json
-├── tsconfig.json
 └── README.md
 ```
+
+### Release & npm Publish
+
+1. Add `NPM_TOKEN` to GitHub repository secrets
+2. Bump `version` in `package.json`
+3. Push a tag in `vX.Y.Z` format (e.g. `v1.0.9`)
+4. GitHub Actions will build and run `npm publish --provenance`
 
 ## License
 

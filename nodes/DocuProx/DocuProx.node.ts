@@ -31,11 +31,14 @@ function getMimeType(filename: string): string {
 }
 
 // ── Helper: parse staticValues safely and return object or undefined ──────────
-function parseStaticValues(raw: any): Record<string, any> | undefined {
+function parseStaticValues(raw: any, label: string = ''): Record<string, any> | undefined {
+	console.log(`[DocuProx Debug] ${label} raw input:`, JSON.stringify(raw));
+
 	if (raw === null || raw === undefined) return undefined;
 
 	// ✅ n8n returns [null] or [undefined] for empty json fields — reject any array
 	if (Array.isArray(raw)) {
+		console.log(`[DocuProx Debug] ${label} input is an array, rejecting`);
 		return undefined;
 	}
 
@@ -53,14 +56,17 @@ function parseStaticValues(raw: any): Record<string, any> | undefined {
 
 	// After parsing, re-check for array or non-object
 	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		console.log(`[DocuProx Debug] ${label} parsed is not an object/is array, rejecting`);
 		return undefined;
 	}
 
 	// Reject empty objects
 	if (Object.keys(parsed).length === 0) {
+		console.log(`[DocuProx Debug] ${label} object is empty, rejecting`);
 		return undefined;
 	}
 
+	console.log(`[DocuProx Debug] ${label} validation passed`);
 	return parsed;
 }
 
@@ -72,7 +78,8 @@ export class DocuProx implements INodeType {
 		icon: 'file:douprox-logo.svg',
 		group: ['transform'],
 		version: 1,
-		description: 'Process documents using DocuProx API',
+		description: 'AI-powered document data extraction using DocuProx. Use AI Agents with natural language prompts or AI-driven template extraction to pull structured data from documents in real-time or via high-volume batch processing.',
+		documentationUrl: 'https://docuprox.com/docs/',
 		defaults: {
 			name: 'DocuProx',
 		},
@@ -85,6 +92,17 @@ export class DocuProx implements INodeType {
 			},
 		],
 		properties: [
+			{
+				displayName: 'Need help setting up? Check out our <a href="https://docuprox.com/docs/getting-started/" target="_blank">Documentation Guide</a>.',
+				name: 'helpNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document', 'job'],
+					},
+				},
+			},
 
 			// ─── Resource Selector ─────────────────────────────────────────────
 			{
@@ -95,12 +113,12 @@ export class DocuProx implements INodeType {
 					{
 						name: 'Document',
 						value: 'document',
-						description: 'Real-time document processing',
+						description: 'Process individual document images in real-time. Supports both predefined Template IDs and AI-powered extraction without templates.',
 					},
 					{
 						name: 'Job',
 						value: 'job',
-						description: 'Background job submission and management',
+						description: 'Submit and manage high-volume batch processing for multiple documents within a ZIP file',
 					},
 				],
 				default: 'document',
@@ -119,19 +137,19 @@ export class DocuProx implements INodeType {
 				},
 				options: [
 					{
-						name: 'Process',
-						value: 'process',
-						action: 'Process a document',
-						description: 'Process a document in real-time with a template',
-					},
-					{
 						name: 'Process Agent',
 						value: 'process_agent',
 						action: 'Process with agent',
-						description: 'Process a document using AI agent with custom instructions and extraction prompts',
+						description: 'Process documents via the DocuProx API. Extract structured data using manual or AI-generated prompts, no template required.',
+					},
+					{
+						name: 'Process',
+						value: 'process',
+						action: 'Process a document',
+						description: 'Extract document data in real-time by providing a Template ID (UUID) from your DocuProx dashboard',
 					},
 				],
-				default: 'process',
+				default: 'process_agent',
 				required: true,
 			},
 
@@ -150,19 +168,19 @@ export class DocuProx implements INodeType {
 						name: 'Submit Job',
 						value: 'processJob',
 						action: 'Submit a job',
-						description: 'Submit a batch job with a template ID and ZIP file',
+						description: 'Submit a batch job containing multiple documents in a ZIP file to the DocuProx API for background processing',
 					},
 					{
 						name: 'Get Job Status',
 						value: 'jobStatus',
 						action: 'Get job status',
-						description: 'Get the status of a submitted job',
+						description: 'Get the current processing status, progress percentage, and result metadata for a submitted batch job',
 					},
 					{
 						name: 'Get Job Results',
 						value: 'jobResults',
 						action: 'Get job results',
-						description: 'Retrieve the results of a completed job',
+						description: 'Retrieve the fully extracted structured data (JSON/CSV) for all documents contained in a completed batch job',
 					},
 				],
 				default: 'processJob',
@@ -177,7 +195,7 @@ export class DocuProx implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'Enter Template ID',
-				description: 'The ID of the template to use',
+				description: 'The unique extraction template ID from your DocuProx dashboard. Example: "29ce218f-c9d2-4d4a-b7fd-167ed9bb086f".',
 				displayOptions: {
 					show: {
 						operation: ['process', 'processJob'],
@@ -193,7 +211,7 @@ export class DocuProx implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f',
-				description: 'The ID of the job',
+				description: 'The unique UUID of the batch processing job, returned when you "Submit Job". Required for status and result retrieval.',
 				displayOptions: {
 					show: {
 						operation: ['jobStatus', 'jobResults'],
@@ -285,6 +303,150 @@ export class DocuProx implements INodeType {
 				},
 			},
 			{
+				displayName: 'Selection Method',
+				name: 'selectionMethod',
+				type: 'options',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process_agent'],
+					},
+				},
+				options: [
+					{
+						name: 'Structured (Form)',
+						value: 'structured',
+						description: 'Add properties individually using fields',
+					},
+					{
+						name: 'Manual (JSON)',
+						value: 'manual',
+						description: 'Provide payload as a raw JSON blob',
+					},
+				],
+				default: 'structured',
+				description: 'Select how you want to provide the agent payload',
+			},
+			{
+				displayName: 'Document Type',
+				name: 'documentType',
+				type: 'string',
+				required: true,
+				default: '',
+				placeholder: 'e.g. passport',
+				description: 'The type or category of document being processed (e.g. "passport", "invoice"), used to guide the AI model\'s extraction logic',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process_agent'],
+						selectionMethod: ['structured'],
+					},
+				},
+			},
+			{
+				displayName: 'Custom Instructions',
+				name: 'customInstructions',
+				type: 'string',
+				required: false,
+				default: '',
+				placeholder: 'e.g. Please extract all the relevant fields carefully',
+				description: 'Provide specific natural language guidance for the AI Agent (e.g. "Extract all dates in YYYY-MM-DD" or "Ignore blurred marks")',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process_agent'],
+						selectionMethod: ['structured'],
+					},
+				},
+			},
+			{
+				displayName: 'Prompts',
+				name: 'prompts',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				placeholder: 'Add Prompt',
+				default: {
+					values: [
+						{
+							key: '',
+							value: '',
+						},
+					],
+				},
+				options: [
+					{
+						name: 'values',
+						displayName: 'Values',
+						values: [
+							{
+								displayName: 'Key',
+								name: 'key',
+								type: 'string',
+								default: '',
+								placeholder: 'e.g. passport_number',
+								description: 'The logical name (e.g. "total_amount") that will represent this field in the final result object',
+							},
+							{
+								displayName: 'Instruction',
+								name: 'value',
+								type: 'string',
+								default: '',
+								placeholder: 'e.g. extract the passport number from the top right',
+								description: 'Detailed instructions for the AI on how to find or interpret this specific value within the document',
+							},
+						],
+					},
+				],
+				description: 'A list of individual field definitions and instructions for the AI Agent to locate and extract from the document image',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process_agent'],
+						selectionMethod: ['structured'],
+					},
+				},
+			},
+			{
+				displayName: 'Static Values',
+				name: 'staticValuesAgent',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				placeholder: 'Add Static Value',
+				default: {},
+				options: [
+					{
+						name: 'values',
+						displayName: 'Static Values',
+						values: [
+							{
+								displayName: 'Key',
+								name: 'key',
+								type: 'string',
+								default: '',
+							},
+							{
+								displayName: 'Value',
+								name: 'value',
+								type: 'string',
+								default: '',
+							},
+						],
+					},
+				],
+				description: 'Static key-value metadata pairs to include alongside the AI Agent\'s extraction results',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['process_agent'],
+						selectionMethod: ['structured'],
+					},
+				},
+			},
+			{
 				displayName: 'Payload',
 				name: 'payload',
 				type: 'json',
@@ -295,6 +457,7 @@ export class DocuProx implements INodeType {
 					show: {
 						resource: ['document'],
 						operation: ['process_agent'],
+						selectionMethod: ['manual'],
 					},
 				},
 			},
@@ -375,6 +538,7 @@ export class DocuProx implements INodeType {
 				const operation = this.getNodeParameter('operation', i) as string;
 
 				const credentials = await this.getCredentials('docuProxApi', i);
+				console.log(`[DocuProx] i=${i} | Resource=${resource} | Operation=${operation} | API Key: ${credentials.apiKey}`);
 
 				// ─── PROCESS ───────────────────────────────────────────────────
 				if (resource === 'document' && operation === 'process') {
@@ -382,7 +546,12 @@ export class DocuProx implements INodeType {
 					const imageSource = this.getNodeParameter('imageSource', i) as string;
 
 					if (!templateId || templateId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
+					}
+
+					const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+					if (!uuidRegex.test(templateId.trim())) {
+						throw new NodeOperationError(this.getNode(), 'Template ID must be a valid UUID (e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f)', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
 					}
 
 					let imageData: string;
@@ -394,7 +563,7 @@ export class DocuProx implements INodeType {
 							throw new NodeOperationError(
 								this.getNode(),
 								'Binary Property Name is required when using Upload Image',
-								{ itemIndex: i },
+								{ itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' },
 							);
 						}
 
@@ -402,7 +571,7 @@ export class DocuProx implements INodeType {
 							throw new NodeOperationError(
 								this.getNode(),
 								`No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`,
-								{ itemIndex: i },
+								{ itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' },
 							);
 						}
 
@@ -416,7 +585,7 @@ export class DocuProx implements INodeType {
 							throw new NodeOperationError(
 								this.getNode(),
 								'Base64 Image is required when using Base64 String option',
-								{ itemIndex: i },
+								{ itemIndex: i, description: 'Provide a valid Base64 encoded string. Make sure it includes the image data after the base64, prefix.' },
 							);
 						}
 
@@ -427,7 +596,7 @@ export class DocuProx implements INodeType {
 
 					// ── Optional static_values ──────────────────────────────────
 					const rawStaticValues = this.getNodeParameter('staticValues', i, null) as any;
-					const staticValues = parseStaticValues(rawStaticValues);
+					const staticValues = parseStaticValues(rawStaticValues, 'Document Process');
 
 					// ── Build request body ──────────────────────────────────────
 					const requestBody: Record<string, any> = {
@@ -439,7 +608,7 @@ export class DocuProx implements INodeType {
 						requestBody.static_values = staticValues;
 					}
 
-
+					console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
 
 					const response = await this.helpers.httpRequestWithAuthentication.call(
 						this,
@@ -476,21 +645,56 @@ export class DocuProx implements INodeType {
 				// ─── PROCESS AGENT ─────────────────────────────────────────────
 				else if (resource === 'document' && operation === 'process_agent') {
 					const imageSource = this.getNodeParameter('imageSource', i) as string;
-					const payloadRaw = this.getNodeParameter('payload', i) as any;
+					const selectionMethod = this.getNodeParameter('selectionMethod', i, 'structured') as string;
 
 					let payload: any;
-					try {
-						if (typeof payloadRaw === 'string') {
-							payload = JSON.parse(payloadRaw);
-						} else {
-							payload = payloadRaw;
+
+					if (selectionMethod === 'manual') {
+						const payloadRaw = this.getNodeParameter('payload', i) as any;
+						try {
+							if (typeof payloadRaw === 'string') {
+								payload = JSON.parse(payloadRaw);
+							} else {
+								payload = payloadRaw;
+							}
+						} catch (e) {
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i, description: 'Ensure the JSON is valid. Use a tool like jsonlint.com to check your syntax.' });
 						}
-					} catch (e) {
-						throw new NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i });
+					} else {
+						// Structured Mode: Build payload from individual fields
+						const documentType = this.getNodeParameter('documentType', i, '') as string;
+						const customInstructions = this.getNodeParameter('customInstructions', i, '') as string;
+						const prompts = this.getNodeParameter('prompts', i, { values: [] }) as any;
+						const staticValuesArr = this.getNodeParameter('staticValuesAgent', i, { values: [] }) as any;
+
+						payload = {
+							document_type: documentType,
+							custom_instructions: customInstructions,
+							prompt_json: {},
+							static_values: {},
+						};
+
+						// Build prompt_json object
+						if (prompts.values) {
+							for (const prompt of prompts.values) {
+								if (prompt.key) {
+									payload.prompt_json[prompt.key] = prompt.value;
+								}
+							}
+						}
+
+						// Build static_values object
+						if (staticValuesArr.values) {
+							for (const val of staticValuesArr.values) {
+								if (val.key) {
+									payload.static_values[val.key] = val.value;
+								}
+							}
+						}
 					}
 
 					if (!payload || typeof payload !== 'object') {
-						throw new NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i, description: 'Ensure the JSON is valid. Use a tool like jsonlint.com to check your syntax.' });
 					}
 
 					let imageData: string;
@@ -498,24 +702,24 @@ export class DocuProx implements INodeType {
 					if (imageSource === 'upload') {
 						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
 						if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-							throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+							throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' });
 						}
 						if (!items[i].binary || !items[i].binary![binaryPropertyName]) {
-							throw new NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i });
+							throw new NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' });
 						}
 						const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
 						imageData = buffer.toString('base64');
 					} else {
 						imageData = this.getNodeParameter('base64Image', i) as string;
 						if (!imageData || imageData.trim() === '') {
-							throw new NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i });
+							throw new NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i, description: 'Provide a valid Base64 encoded string. Make sure it includes the image data after the base64, prefix.' });
 						}
 						if (imageData.includes('base64,')) {
 							imageData = imageData.split('base64,')[1];
 						}
 					}
 
-
+					console.log(`[DocuProx] process-agent → payload: ${JSON.stringify(payload)} | imageLength: ${imageData.length}`);
 
 					const response = await this.helpers.httpRequestWithAuthentication.call(
 						this,
@@ -552,18 +756,23 @@ export class DocuProx implements INodeType {
 					const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
 
 					if (!templateId || templateId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
+					}
+
+					const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+					if (!uuidRegex.test(templateId.trim())) {
+						throw new NodeOperationError(this.getNode(), 'Template ID must be a valid UUID (e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f)', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
 					}
 
 					if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' });
 					}
 
 					if (!items[i].binary || !items[i].binary![binaryPropertyName]) {
 						throw new NodeOperationError(
 							this.getNode(),
 							`No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`,
-							{ itemIndex: i },
+							{ itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' },
 						);
 					}
 
@@ -572,7 +781,7 @@ export class DocuProx implements INodeType {
 
 					// ── Optional static_values ────────────────────────────────
 					const rawStaticValues = this.getNodeParameter('staticValues', i, null) as any;
-					const staticValues = parseStaticValues(rawStaticValues);
+					const staticValues = parseStaticValues(rawStaticValues, 'Submit Job');
 
 					// ── Build request body ────────────────────────────────────
 					const requestBody: Record<string, any> = {
@@ -584,7 +793,7 @@ export class DocuProx implements INodeType {
 						requestBody.static_values = staticValues;
 					}
 
-
+					console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
 
 					let response: any;
 					try {
@@ -604,13 +813,21 @@ export class DocuProx implements INodeType {
 							},
 						);
 					} catch (error: any) {
+						console.error('========== DocuProx ERROR ==========');
+						console.error('Message:', error.message);
+						console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
+						console.error('Status Code:', error.response?.statusCode || 'N/A');
+						console.error('====================================');
 						throw new NodeOperationError(
 							this.getNode(),
 							`DocuProx API Error: ${error.message}`,
-							{ itemIndex: i },
+							{ itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' },
 						);
 					}
 
+					console.log('========== DocuProx RESPONSE ==========');
+					console.log(JSON.stringify(response, null, 2));
+					console.log('=======================================');
 
 					const jobOutput: Record<string, any> = {
 						success: true,
@@ -633,10 +850,10 @@ export class DocuProx implements INodeType {
 					const jobId = this.getNodeParameter('jobId', i) as string;
 
 					if (!jobId || jobId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
 					}
 
-
+					console.log(`[DocuProx] jobStatus → job_id: ${jobId}`);
 
 					let response: any;
 					try {
@@ -657,13 +874,21 @@ export class DocuProx implements INodeType {
 							},
 						);
 					} catch (error: any) {
+						console.error('========== DocuProx ERROR ==========');
+						console.error('Message:', error.message);
+						console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
+						console.error('Status Code:', error.response?.statusCode || 'N/A');
+						console.error('====================================');
 						throw new NodeOperationError(
 							this.getNode(),
 							`DocuProx API Error: ${error.message}`,
-							{ itemIndex: i },
+							{ itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' },
 						);
 					}
 
+					console.log('========== DocuProx RESPONSE ==========');
+					console.log(JSON.stringify(response, null, 2));
+					console.log('=======================================');
 
 					returnData.push({
 						json: {
@@ -682,10 +907,10 @@ export class DocuProx implements INodeType {
 					const resultFormat = this.getNodeParameter('resultFormat', i) as string;
 
 					if (!jobId || jobId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
 					}
 
-
+					console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
 
 					const isJson = resultFormat === 'json';
 
