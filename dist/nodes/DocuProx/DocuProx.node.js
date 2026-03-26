@@ -64,7 +64,7 @@ class DocuProx {
             icon: 'file:douprox-logo.svg',
             group: ['transform'],
             version: 1,
-            description: 'Process documents using DocuProx API',
+            description: 'AI-powered document data extraction using DocuProx. Use AI Agents with natural language prompts or AI-driven template extraction to pull structured data from documents in real-time or via high-volume batch processing.',
             documentationUrl: 'https://docuprox.com/docs/',
             defaults: {
                 name: 'DocuProx',
@@ -124,13 +124,13 @@ class DocuProx {
                             name: 'Process Agent',
                             value: 'process_agent',
                             action: 'Process with agent',
-                            description: 'Leverage the DocuProx AI Agent to extract structured fields using natural language prompts without needing a dashboard template',
+                            description: 'Process documents via the DocuProx API. Extract structured data using manual or AI-generated prompts, no template required.',
                         },
                         {
                             name: 'Process',
                             value: 'process',
                             action: 'Process a document',
-                            description: 'Extract document data in real-time by providing a template ID created in the DocuProx dashboard',
+                            description: 'Extract document data in real-time by providing a Template ID (UUID) from your DocuProx dashboard',
                         },
                     ],
                     default: 'process_agent',
@@ -177,7 +177,7 @@ class DocuProx {
                     required: true,
                     default: '',
                     placeholder: 'Enter Template ID',
-                    description: 'The unique extraction template ID from your DocuProx dashboard. Example: "template_123".',
+                    description: 'The unique extraction template ID from your DocuProx dashboard. Example: "29ce218f-c9d2-4d4a-b7fd-167ed9bb086f".',
                     displayOptions: {
                         show: {
                             operation: ['process', 'processJob'],
@@ -311,7 +311,7 @@ class DocuProx {
                     required: true,
                     default: '',
                     placeholder: 'e.g. passport',
-                    description: 'Specifically identifies the category or type of document (e.g. "passport", "invoice") to guide the internal AI model logic',
+                    description: 'The type or category of document being processed (e.g. "passport", "invoice"), used to guide the AI model\'s extraction logic',
                     displayOptions: {
                         show: {
                             resource: ['document'],
@@ -414,7 +414,7 @@ class DocuProx {
                             ],
                         },
                     ],
-                    description: 'A list of static key-value metadata that will be added to the extraction result of every item processed by the AI Agent',
+                    description: 'Static key-value metadata pairs to include alongside the AI Agent\'s extraction results',
                     displayOptions: {
                         show: {
                             resource: ['document'],
@@ -516,16 +516,20 @@ class DocuProx {
                     const templateId = this.getNodeParameter('templateId', i);
                     const imageSource = this.getNodeParameter('imageSource', i);
                     if (!templateId || templateId.trim() === '') {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
+                    }
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    if (!uuidRegex.test(templateId.trim())) {
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Template ID must be a valid UUID (e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f)', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
                     }
                     let imageData;
                     if (imageSource === 'upload') {
                         const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i);
                         if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Binary Property Name is required when using Upload Image', { itemIndex: i });
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Binary Property Name is required when using Upload Image', { itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' });
                         }
                         if (!items[i].binary || !items[i].binary[binaryPropertyName]) {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`, { itemIndex: i });
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`, { itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' });
                         }
                         const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
                         imageData = buffer.toString('base64');
@@ -533,7 +537,7 @@ class DocuProx {
                     else {
                         imageData = this.getNodeParameter('base64Image', i);
                         if (!imageData || imageData.trim() === '') {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Base64 Image is required when using Base64 String option', { itemIndex: i });
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Base64 Image is required when using Base64 String option', { itemIndex: i, description: 'Provide a valid Base64 encoded string. Make sure it includes the image data after the base64, prefix.' });
                         }
                         if (imageData.includes('base64,')) {
                             imageData = imageData.split('base64,')[1];
@@ -592,7 +596,7 @@ class DocuProx {
                             }
                         }
                         catch (e) {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i });
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i, description: 'Ensure the JSON is valid. Use a tool like jsonlint.com to check your syntax.' });
                         }
                     }
                     else {
@@ -625,16 +629,16 @@ class DocuProx {
                         }
                     }
                     if (!payload || typeof payload !== 'object') {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i, description: 'Ensure the JSON is valid. Use a tool like jsonlint.com to check your syntax.' });
                     }
                     let imageData;
                     if (imageSource === 'upload') {
                         const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i);
                         if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' });
                         }
                         if (!items[i].binary || !items[i].binary[binaryPropertyName]) {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i });
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' });
                         }
                         const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
                         imageData = buffer.toString('base64');
@@ -642,7 +646,7 @@ class DocuProx {
                     else {
                         imageData = this.getNodeParameter('base64Image', i);
                         if (!imageData || imageData.trim() === '') {
-                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i });
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i, description: 'Provide a valid Base64 encoded string. Make sure it includes the image data after the base64, prefix.' });
                         }
                         if (imageData.includes('base64,')) {
                             imageData = imageData.split('base64,')[1];
@@ -677,13 +681,17 @@ class DocuProx {
                     const templateId = this.getNodeParameter('templateId', i);
                     const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i);
                     if (!templateId || templateId.trim() === '') {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
+                    }
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    if (!uuidRegex.test(templateId.trim())) {
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Template ID must be a valid UUID (e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f)', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
                     }
                     if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' });
                     }
                     if (!items[i].binary || !items[i].binary[binaryPropertyName]) {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`, { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`, { itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' });
                     }
                     const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
                     const zipBase64 = buffer.toString('base64');
@@ -719,7 +727,7 @@ class DocuProx {
                         console.error('API Response Body:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.body) || ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || 'N/A');
                         console.error('Status Code:', ((_c = error.response) === null || _c === void 0 ? void 0 : _c.statusCode) || 'N/A');
                         console.error('====================================');
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `DocuProx API Error: ${error.message}`, { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `DocuProx API Error: ${error.message}`, { itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' });
                     }
                     console.log('========== DocuProx RESPONSE ==========');
                     console.log(JSON.stringify(response, null, 2));
@@ -742,7 +750,7 @@ class DocuProx {
                 else if (resource === 'job' && operation === 'jobStatus') {
                     const jobId = this.getNodeParameter('jobId', i);
                     if (!jobId || jobId.trim() === '') {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
                     }
                     console.log(`[DocuProx] jobStatus → job_id: ${jobId}`);
                     let response;
@@ -766,7 +774,7 @@ class DocuProx {
                         console.error('API Response Body:', ((_d = error.response) === null || _d === void 0 ? void 0 : _d.body) || ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) || 'N/A');
                         console.error('Status Code:', ((_f = error.response) === null || _f === void 0 ? void 0 : _f.statusCode) || 'N/A');
                         console.error('====================================');
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `DocuProx API Error: ${error.message}`, { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `DocuProx API Error: ${error.message}`, { itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' });
                     }
                     console.log('========== DocuProx RESPONSE ==========');
                     console.log(JSON.stringify(response, null, 2));
@@ -786,7 +794,7 @@ class DocuProx {
                     const jobId = this.getNodeParameter('jobId', i);
                     const resultFormat = this.getNodeParameter('resultFormat', i);
                     if (!jobId || jobId.trim() === '') {
-                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
                     }
                     console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
                     const isJson = resultFormat === 'json';

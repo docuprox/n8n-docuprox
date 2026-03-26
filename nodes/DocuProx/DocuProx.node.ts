@@ -78,7 +78,7 @@ export class DocuProx implements INodeType {
 		icon: 'file:douprox-logo.svg',
 		group: ['transform'],
 		version: 1,
-		description: 'Process documents using DocuProx API',
+		description: 'AI-powered document data extraction using DocuProx. Use AI Agents with natural language prompts or AI-driven template extraction to pull structured data from documents in real-time or via high-volume batch processing.',
 		documentationUrl: 'https://docuprox.com/docs/',
 		defaults: {
 			name: 'DocuProx',
@@ -140,13 +140,13 @@ export class DocuProx implements INodeType {
 						name: 'Process Agent',
 						value: 'process_agent',
 						action: 'Process with agent',
-						description: 'Leverage the DocuProx AI Agent to extract structured fields using natural language prompts without needing a dashboard template',
+						description: 'Process documents via the DocuProx API. Extract structured data using manual or AI-generated prompts, no template required.',
 					},
 					{
 						name: 'Process',
 						value: 'process',
 						action: 'Process a document',
-						description: 'Extract document data in real-time by providing a template ID created in the DocuProx dashboard',
+						description: 'Extract document data in real-time by providing a Template ID (UUID) from your DocuProx dashboard',
 					},
 				],
 				default: 'process_agent',
@@ -195,7 +195,7 @@ export class DocuProx implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'Enter Template ID',
-				description: 'The unique extraction template ID from your DocuProx dashboard. Example: "template_123".',
+				description: 'The unique extraction template ID from your DocuProx dashboard. Example: "29ce218f-c9d2-4d4a-b7fd-167ed9bb086f".',
 				displayOptions: {
 					show: {
 						operation: ['process', 'processJob'],
@@ -334,7 +334,7 @@ export class DocuProx implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'e.g. passport',
-				description: 'Specifically identifies the category or type of document (e.g. "passport", "invoice") to guide the internal AI model logic',
+				description: 'The type or category of document being processed (e.g. "passport", "invoice"), used to guide the AI model\'s extraction logic',
 				displayOptions: {
 					show: {
 						resource: ['document'],
@@ -437,7 +437,7 @@ export class DocuProx implements INodeType {
 						],
 					},
 				],
-				description: 'A list of static key-value metadata that will be added to the extraction result of every item processed by the AI Agent',
+				description: 'Static key-value metadata pairs to include alongside the AI Agent\'s extraction results',
 				displayOptions: {
 					show: {
 						resource: ['document'],
@@ -546,7 +546,12 @@ export class DocuProx implements INodeType {
 					const imageSource = this.getNodeParameter('imageSource', i) as string;
 
 					if (!templateId || templateId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
+					}
+
+					const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+					if (!uuidRegex.test(templateId.trim())) {
+						throw new NodeOperationError(this.getNode(), 'Template ID must be a valid UUID (e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f)', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
 					}
 
 					let imageData: string;
@@ -558,7 +563,7 @@ export class DocuProx implements INodeType {
 							throw new NodeOperationError(
 								this.getNode(),
 								'Binary Property Name is required when using Upload Image',
-								{ itemIndex: i },
+								{ itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' },
 							);
 						}
 
@@ -566,7 +571,7 @@ export class DocuProx implements INodeType {
 							throw new NodeOperationError(
 								this.getNode(),
 								`No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`,
-								{ itemIndex: i },
+								{ itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' },
 							);
 						}
 
@@ -580,7 +585,7 @@ export class DocuProx implements INodeType {
 							throw new NodeOperationError(
 								this.getNode(),
 								'Base64 Image is required when using Base64 String option',
-								{ itemIndex: i },
+								{ itemIndex: i, description: 'Provide a valid Base64 encoded string. Make sure it includes the image data after the base64, prefix.' },
 							);
 						}
 
@@ -653,7 +658,7 @@ export class DocuProx implements INodeType {
 								payload = payloadRaw;
 							}
 						} catch (e) {
-							throw new NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i });
+							throw new NodeOperationError(this.getNode(), 'Invalid JSON in Payload field', { itemIndex: i, description: 'Ensure the JSON is valid. Use a tool like jsonlint.com to check your syntax.' });
 						}
 					} else {
 						// Structured Mode: Build payload from individual fields
@@ -689,7 +694,7 @@ export class DocuProx implements INodeType {
 					}
 
 					if (!payload || typeof payload !== 'object') {
-						throw new NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Payload must be a valid JSON object', { itemIndex: i, description: 'Ensure the JSON is valid. Use a tool like jsonlint.com to check your syntax.' });
 					}
 
 					let imageData: string;
@@ -697,17 +702,17 @@ export class DocuProx implements INodeType {
 					if (imageSource === 'upload') {
 						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
 						if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-							throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+							throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' });
 						}
 						if (!items[i].binary || !items[i].binary![binaryPropertyName]) {
-							throw new NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i });
+							throw new NodeOperationError(this.getNode(), `No binary data found for property "${binaryPropertyName}"`, { itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' });
 						}
 						const buffer = await this.helpers.getBinaryDataBuffer(i, binaryPropertyName);
 						imageData = buffer.toString('base64');
 					} else {
 						imageData = this.getNodeParameter('base64Image', i) as string;
 						if (!imageData || imageData.trim() === '') {
-							throw new NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i });
+							throw new NodeOperationError(this.getNode(), 'Base64 Image is required', { itemIndex: i, description: 'Provide a valid Base64 encoded string. Make sure it includes the image data after the base64, prefix.' });
 						}
 						if (imageData.includes('base64,')) {
 							imageData = imageData.split('base64,')[1];
@@ -751,18 +756,23 @@ export class DocuProx implements INodeType {
 					const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
 
 					if (!templateId || templateId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Template ID is required', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
+					}
+
+					const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+					if (!uuidRegex.test(templateId.trim())) {
+						throw new NodeOperationError(this.getNode(), 'Template ID must be a valid UUID (e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f)', { itemIndex: i, description: 'Find your Template ID in the DocuProx dashboard: https://app.docuprox.com/login' });
 					}
 
 					if (!binaryPropertyName || binaryPropertyName.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Binary Property Name is required', { itemIndex: i, description: 'This is the property name of the binary data from the previous node. Default is "data".' });
 					}
 
 					if (!items[i].binary || !items[i].binary![binaryPropertyName]) {
 						throw new NodeOperationError(
 							this.getNode(),
 							`No binary data found for property "${binaryPropertyName}". Make sure the previous node outputs a file.`,
-							{ itemIndex: i },
+							{ itemIndex: i, description: 'Connect a node that outputs a file (e.g. Read Binary File, HTTP Request, Google Drive) before this node.' },
 						);
 					}
 
@@ -811,7 +821,7 @@ export class DocuProx implements INodeType {
 						throw new NodeOperationError(
 							this.getNode(),
 							`DocuProx API Error: ${error.message}`,
-							{ itemIndex: i },
+							{ itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' },
 						);
 					}
 
@@ -840,7 +850,7 @@ export class DocuProx implements INodeType {
 					const jobId = this.getNodeParameter('jobId', i) as string;
 
 					if (!jobId || jobId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
 					}
 
 					console.log(`[DocuProx] jobStatus → job_id: ${jobId}`);
@@ -872,7 +882,7 @@ export class DocuProx implements INodeType {
 						throw new NodeOperationError(
 							this.getNode(),
 							`DocuProx API Error: ${error.message}`,
-							{ itemIndex: i },
+							{ itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' },
 						);
 					}
 
@@ -897,7 +907,7 @@ export class DocuProx implements INodeType {
 					const resultFormat = this.getNodeParameter('resultFormat', i) as string;
 
 					if (!jobId || jobId.trim() === '') {
-						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i });
+						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
 					}
 
 					console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
