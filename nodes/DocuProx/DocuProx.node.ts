@@ -113,12 +113,12 @@ export class DocuProx implements INodeType {
 					{
 						name: 'Document',
 						value: 'document',
-						description: 'Real-time document processing',
+						description: 'Process individual document images in real-time. Supports both predefined Template IDs and AI-powered extraction without templates.',
 					},
 					{
 						name: 'Job',
 						value: 'job',
-						description: 'Background job submission and management',
+						description: 'Submit and manage high-volume batch processing for multiple documents within a ZIP file',
 					},
 				],
 				default: 'document',
@@ -140,13 +140,13 @@ export class DocuProx implements INodeType {
 						name: 'Process Agent',
 						value: 'process_agent',
 						action: 'Process with agent',
-						description: 'Process a document using AI agent with custom instructions and extraction prompts',
+						description: 'Leverage the DocuProx AI Agent to extract structured fields using natural language prompts without needing a dashboard template',
 					},
 					{
 						name: 'Process',
 						value: 'process',
 						action: 'Process a document',
-						description: 'Process a document in real-time with a template',
+						description: 'Extract document data in real-time by providing a template ID created in the DocuProx dashboard',
 					},
 				],
 				default: 'process_agent',
@@ -168,19 +168,19 @@ export class DocuProx implements INodeType {
 						name: 'Submit Job',
 						value: 'processJob',
 						action: 'Submit a job',
-						description: 'Submit a batch job with a template ID and ZIP file',
+						description: 'Submit a batch job containing multiple documents in a ZIP file to the DocuProx API for background processing',
 					},
 					{
 						name: 'Get Job Status',
 						value: 'jobStatus',
 						action: 'Get job status',
-						description: 'Get the status of a submitted job',
+						description: 'Get the current processing status, progress percentage, and result metadata for a submitted batch job',
 					},
 					{
 						name: 'Get Job Results',
 						value: 'jobResults',
 						action: 'Get job results',
-						description: 'Retrieve the results of a completed job',
+						description: 'Retrieve the fully extracted structured data (JSON/CSV) for all documents contained in a completed batch job',
 					},
 				],
 				default: 'processJob',
@@ -195,7 +195,7 @@ export class DocuProx implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'Enter Template ID',
-				description: 'The ID of the template to use',
+				description: 'The unique extraction template ID from your DocuProx dashboard. Example: "template_123".',
 				displayOptions: {
 					show: {
 						operation: ['process', 'processJob'],
@@ -211,7 +211,7 @@ export class DocuProx implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'e.g. 29ce218f-c9d2-4d4a-b7fd-167ed9bb086f',
-				description: 'The ID of the job',
+				description: 'The unique UUID of the batch processing job, returned when you "Submit Job". Required for status and result retrieval.',
 				displayOptions: {
 					show: {
 						operation: ['jobStatus', 'jobResults'],
@@ -334,7 +334,7 @@ export class DocuProx implements INodeType {
 				required: true,
 				default: '',
 				placeholder: 'e.g. passport',
-				description: 'The category or type of document (e.g. Passport, Invoice, ID Card) to guide the AI extraction',
+				description: 'Specifically identifies the category or type of document (e.g. "passport", "invoice") to guide the internal AI model logic',
 				displayOptions: {
 					show: {
 						resource: ['document'],
@@ -350,7 +350,7 @@ export class DocuProx implements INodeType {
 				required: false,
 				default: '',
 				placeholder: 'e.g. Please extract all the relevant fields carefully',
-				description: 'Additional instructions for the AI agent',
+				description: 'Provide specific natural language guidance for the AI Agent (e.g. "Extract all dates in YYYY-MM-DD" or "Ignore blurred marks")',
 				displayOptions: {
 					show: {
 						resource: ['document'],
@@ -386,7 +386,7 @@ export class DocuProx implements INodeType {
 								type: 'string',
 								default: '',
 								placeholder: 'e.g. passport_number',
-								description: 'The logical name for this extracted field',
+								description: 'The logical name (e.g. "total_amount") that will represent this field in the final result object',
 							},
 							{
 								displayName: 'Instruction',
@@ -394,12 +394,12 @@ export class DocuProx implements INodeType {
 								type: 'string',
 								default: '',
 								placeholder: 'e.g. extract the passport number from the top right',
-								description: 'Instruction for the agent on what to extract for this field',
+								description: 'Detailed instructions for the AI on how to find or interpret this specific value within the document',
 							},
 						],
 					},
 				],
-				description: 'Define specific extraction prompts for the agent',
+				description: 'A list of individual field definitions and instructions for the AI Agent to locate and extract from the document image',
 				displayOptions: {
 					show: {
 						resource: ['document'],
@@ -437,7 +437,7 @@ export class DocuProx implements INodeType {
 						],
 					},
 				],
-				description: 'Additional static metadata to include in the payload',
+				description: 'A list of static key-value metadata that will be added to the extraction result of every item processed by the AI Agent',
 				displayOptions: {
 					show: {
 						resource: ['document'],
