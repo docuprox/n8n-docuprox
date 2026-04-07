@@ -23,12 +23,10 @@ function getMimeType(filename) {
 }
 // ── Helper: parse staticValues safely and return object or undefined ──────────
 function parseStaticValues(raw, label = '') {
-    console.log(`[DocuProx Debug] ${label} raw input:`, JSON.stringify(raw));
     if (raw === null || raw === undefined)
         return undefined;
     // ✅ n8n returns [null] or [undefined] for empty json fields — reject any array
     if (Array.isArray(raw)) {
-        console.log(`[DocuProx Debug] ${label} input is an array, rejecting`);
         return undefined;
     }
     let parsed = raw;
@@ -45,15 +43,12 @@ function parseStaticValues(raw, label = '') {
     }
     // After parsing, re-check for array or non-object
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        console.log(`[DocuProx Debug] ${label} parsed is not an object/is array, rejecting`);
         return undefined;
     }
     // Reject empty objects
     if (Object.keys(parsed).length === 0) {
-        console.log(`[DocuProx Debug] ${label} object is empty, rejecting`);
         return undefined;
     }
-    console.log(`[DocuProx Debug] ${label} validation passed`);
     return parsed;
 }
 class DocuProx {
@@ -501,7 +496,6 @@ class DocuProx {
         };
     }
     async execute() {
-        var _a, _b, _c, _d, _e, _f;
         const items = this.getInputData();
         const returnData = [];
         const BASE_URL = "https://api.docuprox.com/v1";
@@ -510,7 +504,6 @@ class DocuProx {
                 const resource = this.getNodeParameter('resource', i);
                 const operation = this.getNodeParameter('operation', i);
                 const credentials = await this.getCredentials('docuProxApi', i);
-                console.log(`[DocuProx] i=${i} | Resource=${resource} | Operation=${operation} | API Key: ${credentials.apiKey}`);
                 // ─── PROCESS ───────────────────────────────────────────────────
                 if (resource === 'document' && operation === 'process') {
                     const templateId = this.getNodeParameter('templateId', i);
@@ -554,7 +547,6 @@ class DocuProx {
                     if (staticValues) {
                         requestBody.static_values = staticValues;
                     }
-                    console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
                     const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
                         method: 'POST',
                         url: `${BASE_URL}/process`,
@@ -652,7 +644,6 @@ class DocuProx {
                             imageData = imageData.split('base64,')[1];
                         }
                     }
-                    console.log(`[DocuProx] process-agent → payload: ${JSON.stringify(payload)} | imageLength: ${imageData.length}`);
                     const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
                         method: 'POST',
                         url: `${BASE_URL}/process-agent`,
@@ -706,7 +697,6 @@ class DocuProx {
                     if (staticValues) {
                         requestBody.static_values = staticValues;
                     }
-                    console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
                     let response;
                     try {
                         response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
@@ -722,16 +712,8 @@ class DocuProx {
                         });
                     }
                     catch (error) {
-                        console.error('========== DocuProx ERROR ==========');
-                        console.error('Message:', error.message);
-                        console.error('API Response Body:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.body) || ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || 'N/A');
-                        console.error('Status Code:', ((_c = error.response) === null || _c === void 0 ? void 0 : _c.statusCode) || 'N/A');
-                        console.error('====================================');
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `DocuProx API Error: ${error.message}`, { itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' });
                     }
-                    console.log('========== DocuProx RESPONSE ==========');
-                    console.log(JSON.stringify(response, null, 2));
-                    console.log('=======================================');
                     const jobOutput = {
                         success: true,
                         templateId,
@@ -752,7 +734,6 @@ class DocuProx {
                     if (!jobId || jobId.trim() === '') {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
                     }
-                    console.log(`[DocuProx] jobStatus → job_id: ${jobId}`);
                     let response;
                     try {
                         response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
@@ -769,16 +750,8 @@ class DocuProx {
                         });
                     }
                     catch (error) {
-                        console.error('========== DocuProx ERROR ==========');
-                        console.error('Message:', error.message);
-                        console.error('API Response Body:', ((_d = error.response) === null || _d === void 0 ? void 0 : _d.body) || ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) || 'N/A');
-                        console.error('Status Code:', ((_f = error.response) === null || _f === void 0 ? void 0 : _f.statusCode) || 'N/A');
-                        console.error('====================================');
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), `DocuProx API Error: ${error.message}`, { itemIndex: i, description: 'Check your API key credentials or visit https://app.docuprox.com/login' });
                     }
-                    console.log('========== DocuProx RESPONSE ==========');
-                    console.log(JSON.stringify(response, null, 2));
-                    console.log('=======================================');
                     returnData.push({
                         json: {
                             success: true,
@@ -796,7 +769,6 @@ class DocuProx {
                     if (!jobId || jobId.trim() === '') {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
                     }
-                    console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
                     const isJson = resultFormat === 'json';
                     const response = await this.helpers.httpRequestWithAuthentication.call(this, 'docuProxApi', {
                         method: 'POST',
@@ -850,7 +822,7 @@ class DocuProx {
             }
             catch (error) {
                 if (this.continueOnFail()) {
-                    returnData.push({ json: { error: error.message } });
+                    returnData.push({ json: { error: error.message }, pairedItem: { item: i } });
                     continue;
                 }
                 throw error;

@@ -1,4 +1,4 @@
-﻿{
+{
   "compilerOptions": {
     "module": "commonjs",
     "target": "es2017",
@@ -13,8 +13,7 @@
   "include": [
     "nodes/**/*",
     "credentials/**/*",
-    "index.ts",
-    "dist/credentials/DocuProxApi.credentials.ts"
+    "index.ts"
   ],
   "exclude": [
     "node_modules"
