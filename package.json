@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-docuprox",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "An n8n community node for AI-powered document processing via the DocuProx API. Extract structured data from documents using manual or AI-generated prompts — no template required. Supports real-time processing and high-volume batch jobs.",
   "keywords": [
     "n8n",

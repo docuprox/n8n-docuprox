@@ -32,13 +32,13 @@ function getMimeType(filename: string): string {
 
 // ── Helper: parse staticValues safely and return object or undefined ──────────
 function parseStaticValues(raw: any, label: string = ''): Record<string, any> | undefined {
-	console.log(`[DocuProx Debug] ${label} raw input:`, JSON.stringify(raw));
+
 
 	if (raw === null || raw === undefined) return undefined;
 
 	// ✅ n8n returns [null] or [undefined] for empty json fields — reject any array
 	if (Array.isArray(raw)) {
-		console.log(`[DocuProx Debug] ${label} input is an array, rejecting`);
+
 		return undefined;
 	}
 
@@ -56,17 +56,17 @@ function parseStaticValues(raw: any, label: string = ''): Record<string, any> | 
 
 	// After parsing, re-check for array or non-object
 	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-		console.log(`[DocuProx Debug] ${label} parsed is not an object/is array, rejecting`);
+
 		return undefined;
 	}
 
 	// Reject empty objects
 	if (Object.keys(parsed).length === 0) {
-		console.log(`[DocuProx Debug] ${label} object is empty, rejecting`);
+
 		return undefined;
 	}
 
-	console.log(`[DocuProx Debug] ${label} validation passed`);
+
 	return parsed;
 }
 
@@ -538,7 +538,7 @@ export class DocuProx implements INodeType {
 				const operation = this.getNodeParameter('operation', i) as string;
 
 				const credentials = await this.getCredentials('docuProxApi', i);
-				console.log(`[DocuProx] i=${i} | Resource=${resource} | Operation=${operation} | API Key: ${credentials.apiKey}`);
+
 
 				// ─── PROCESS ───────────────────────────────────────────────────
 				if (resource === 'document' && operation === 'process') {
@@ -608,7 +608,7 @@ export class DocuProx implements INodeType {
 						requestBody.static_values = staticValues;
 					}
 
-					console.log(`[DocuProx] process → template_id: ${templateId} | imageLength: ${imageData.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
+
 
 					const response = await this.helpers.httpRequestWithAuthentication.call(
 						this,
@@ -719,7 +719,7 @@ export class DocuProx implements INodeType {
 						}
 					}
 
-					console.log(`[DocuProx] process-agent → payload: ${JSON.stringify(payload)} | imageLength: ${imageData.length}`);
+
 
 					const response = await this.helpers.httpRequestWithAuthentication.call(
 						this,
@@ -793,7 +793,7 @@ export class DocuProx implements INodeType {
 						requestBody.static_values = staticValues;
 					}
 
-					console.log(`[DocuProx] process-job → template_id: ${templateId} | zipBase64Length: ${zipBase64.length} | static_values: ${staticValues ? JSON.stringify(staticValues) : 'not provided'}`);
+
 
 					let response: any;
 					try {
@@ -813,11 +813,7 @@ export class DocuProx implements INodeType {
 							},
 						);
 					} catch (error: any) {
-						console.error('========== DocuProx ERROR ==========');
-						console.error('Message:', error.message);
-						console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
-						console.error('Status Code:', error.response?.statusCode || 'N/A');
-						console.error('====================================');
+
 						throw new NodeOperationError(
 							this.getNode(),
 							`DocuProx API Error: ${error.message}`,
@@ -825,9 +821,7 @@ export class DocuProx implements INodeType {
 						);
 					}
 
-					console.log('========== DocuProx RESPONSE ==========');
-					console.log(JSON.stringify(response, null, 2));
-					console.log('=======================================');
+
 
 					const jobOutput: Record<string, any> = {
 						success: true,
@@ -853,7 +847,7 @@ export class DocuProx implements INodeType {
 						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
 					}
 
-					console.log(`[DocuProx] jobStatus → job_id: ${jobId}`);
+
 
 					let response: any;
 					try {
@@ -874,11 +868,7 @@ export class DocuProx implements INodeType {
 							},
 						);
 					} catch (error: any) {
-						console.error('========== DocuProx ERROR ==========');
-						console.error('Message:', error.message);
-						console.error('API Response Body:', error.response?.body || error.response?.data || 'N/A');
-						console.error('Status Code:', error.response?.statusCode || 'N/A');
-						console.error('====================================');
+
 						throw new NodeOperationError(
 							this.getNode(),
 							`DocuProx API Error: ${error.message}`,
@@ -886,9 +876,7 @@ export class DocuProx implements INodeType {
 						);
 					}
 
-					console.log('========== DocuProx RESPONSE ==========');
-					console.log(JSON.stringify(response, null, 2));
-					console.log('=======================================');
+
 
 					returnData.push({
 						json: {
@@ -910,7 +898,7 @@ export class DocuProx implements INodeType {
 						throw new NodeOperationError(this.getNode(), 'Job ID is required', { itemIndex: i, description: 'The Job ID is returned when you run Submit Job. Check your previous workflow execution.' });
 					}
 
-					console.log(`[DocuProx] jobResults → job_id: ${jobId} | format: ${resultFormat}`);
+
 
 					const isJson = resultFormat === 'json';
 
@@ -976,7 +964,7 @@ export class DocuProx implements INodeType {
 				}
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ json: { error: (error as Error).message } });
+					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
 				}
 				throw error;

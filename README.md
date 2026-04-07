@@ -190,7 +190,7 @@ npm run dev       # Watch mode
 
 1. Add `NPM_TOKEN` to GitHub repository secrets
 2. Bump `version` in `package.json`
-3. Push a tag in `vX.Y.Z` format (e.g. `v1.0.9`)
+3. Push a tag in `vX.Y.Z` format (e.g. `v1.1.0`)
 4. GitHub Actions will build and run `npm publish --provenance`
 
 ## License
